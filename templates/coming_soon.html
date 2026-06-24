@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — War Room{% endblock %}
+{% block body_class %}coming-soon-body{% endblock %}
+
+{% block content %}
+<div class="coming-soon">
+    <a href="/" class="back-link">← Back to dashboard</a>
+
+    <div class="coming-soon-card">
+        <div class="coming-soon-icon">{{ icon }}</div>
+        <h1>{{ title }}</h1>
+        <p class="lead muted">{{ description }}</p>
+
+        {% if planned %}
+        <div class="planned-section">
+            <h3>Planned for this tile</h3>
+            <ul class="planned-list">
+                {% for item in planned %}
+                    <li>{{ item }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <p class="muted small">
+            v1 of the dashboard ships with the Brain tile only. Other tiles activate as you actually
+            reach for them in real work — designed from usage data, not speculation.
+        </p>
+    </div>
+</div>
+{% endblock %}

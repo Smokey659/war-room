@@ -1,0 +1,23 @@
+<div class="chat-header">
+    <h2>{{ thread.title }}</h2>
+</div>
+
+<div id="messages" class="messages">
+    {% for entry in rendered_messages %}
+        {{ entry.html | safe }}
+    {% endfor %}
+</div>
+
+<form id="composer"
+      class="composer"
+      hx-post="/threads/{{ thread.id }}/messages"
+      hx-target="#messages"
+      hx-swap="beforeend"
+      hx-on::after-request="this.reset(); document.getElementById('messages').scrollTop = 999999">
+    <textarea name="content"
+              placeholder="Ask the brain…"
+              rows="3"
+              required
+              autofocus></textarea>
+    <button type="submit" class="btn-primary">Send</button>
+</form>

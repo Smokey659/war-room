@@ -1,0 +1,14 @@
+{% if threads %}
+    <ul class="thread-list">
+        {% for tt in threads %}
+            <li>
+                <a href="/brain?thread={{ tt.id }}"
+                   class="thread-link">
+                    {{ tt.title }}
+                </a>
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <div class="muted">No chats yet — start one above.</div>
+{% endif %}

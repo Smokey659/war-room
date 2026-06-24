@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Futures Map — War Room{% endblock %}
+{% block body_class %}trading-body{% endblock %}
+
+{% block content %}
+<div class="agent-page">
+    <header class="agent-page-header">
+        <a href="/trading" class="back-link">← Trading</a>
+        <h1>📊 Futures Map</h1>
+        <p class="muted">Robinhood-supported micros. Quotes from Yahoo (~15-min delayed; crypto near-real-time). Sparkline = 5-day close.</p>
+    </header>
+
+    <div id="futures-grid"
+         hx-get="/trading/futures/grid?refresh=1"
+         hx-trigger="refresh-grid from:body"
+         hx-swap="outerHTML">
+        {% include "partials/futures_grid.html" %}
+    </div>
+</div>
+
+<script>
+  // Refresh button dispatches a custom event the grid listens for.
+  // Keeps the button outside the swapped element so it doesn't get replaced.
+  document.addEventListener('click', (e) => {
+    if (e.target.matches('[data-action="refresh-futures"]')) {
+      htmx.trigger('body', 'refresh-grid');
+    }
+  });
+</script>
+{% endblock %}

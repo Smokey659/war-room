@@ -1,0 +1,17 @@
+{# Streaming placeholder. SSE-connects to /x-agent/brief/stream and swaps in
+   subprocess output as it arrives, then the rendered brief on `done`.
+   `sse-close="done"` MUST live on the same element as `sse-connect` — otherwise
+   htmx-ext-sse never closes the connection and the browser auto-reconnects
+   forever (which would re-fire the server-side subprocess in a loop). #}
+<div class="brief-output"
+     hx-ext="sse"
+     sse-connect="/x-agent/brief/stream"
+     sse-close="done">
+    <div class="brief-streaming-header muted">
+        <span class="cursor-blink">▍</span> Running <code>trending_main.py</code>… (subprocess output below)
+    </div>
+    <div id="brief-stream-content"
+         sse-swap="message,done">
+        <pre class="subprocess-output muted">Waiting for first output…</pre>
+    </div>
+</div>

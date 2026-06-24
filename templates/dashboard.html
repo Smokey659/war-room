@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}War Room — Dashboard{% endblock %}
+{% block body_class %}dashboard-body{% endblock %}
+
+{% block content %}
+<header class="dashboard-header">
+    <h1>War Room</h1>
+    <p class="muted">Your personal-employee cockpit. Click into a tile to drill in.</p>
+</header>
+
+<main class="tile-grid">
+    {% for tile in tiles %}
+        <a href="{{ tile.href }}"
+           class="tile {% if not tile.enabled %}tile-disabled{% endif %}"
+           {% if not tile.enabled %}aria-disabled="true"{% endif %}>
+            <div class="tile-icon">{{ tile.icon }}</div>
+            <h2 class="tile-title">{{ tile.title }}</h2>
+            <p class="tile-description">{{ tile.description }}</p>
+            <div class="tile-status {{ tile.status_class }}">
+                {{ tile.status }}
+            </div>
+        </a>
+    {% endfor %}
+</main>
+
+<footer class="dashboard-footer muted">
+    Vault: <code>{{ vault_path }}</code> · {{ indexed_notes }} notes indexed
+</footer>
+{% endblock %}

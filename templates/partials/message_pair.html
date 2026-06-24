@@ -1,0 +1,27 @@
+{# User message (final) + Assistant placeholder (filled by SSE stream) #}
+{{ user_html | safe }}
+
+<div class="message message-assistant message-streaming"
+     id="msg-{{ asst_msg.id }}"
+     hx-ext="sse"
+     sse-connect="/messages/{{ asst_msg.id }}/stream">
+    <div class="message-role">assistant</div>
+    <div class="message-content"
+         id="msg-{{ asst_msg.id }}-content"
+         sse-swap="message,done"
+         sse-close="done">
+        <span class="cursor-blink">▍</span>
+    </div>
+    {% if asst_sources %}
+        <div class="message-sources">
+            <div class="sources-label">Sources</div>
+            <ul>
+                {% for s in asst_sources %}
+                    <li>
+                        <a href="{{ obsidian_url(s.path) }}" target="_blank" rel="noopener">{{ s.name }}</a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+</div>

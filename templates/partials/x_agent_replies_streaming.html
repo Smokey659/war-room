@@ -1,0 +1,16 @@
+{# SSE-streamed reply-scrape output. Same close-on-`done` pattern as the brief
+   stream — `sse-close` MUST be on the same element as `sse-connect` or the browser
+   auto-reconnects. Account is passed as a query param to the stream endpoint. #}
+<div class="brief-output"
+     hx-ext="sse"
+     sse-connect="/x-agent/replies/stream?account={{ account.key }}"
+     sse-close="done">
+    <div class="brief-streaming-header muted">
+        <span class="cursor-blink">▍</span> Running <code>main.py scrape</code>
+        for <strong>{{ account.display_name }}</strong>… (subprocess output below)
+    </div>
+    <div id="replies-stream-content"
+         sse-swap="message,done">
+        <pre class="subprocess-output muted">Waiting for first output…</pre>
+    </div>
+</div>

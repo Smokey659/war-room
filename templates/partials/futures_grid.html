@@ -1,0 +1,50 @@
+{# Reusable grid: full page renders it on first load; HTMX refresh swaps it.
+   Status bar lives INSIDE the swap target so it updates with the data.       #}
+<div id="futures-grid" class="futures-grid">
+
+    {% for sector_name, quotes in sectors %}
+    <section class="futures-sector">
+        <h2 class="futures-sector-title">{{ sector_name }}</h2>
+        <div class="futures-cards">
+            {% for q in quotes %}
+            <article class="futures-card {{ q.direction }}{% if q.is_active %} active{% endif %}"
+                     title="{{ q.full }} — quoted via full-size symbol (micro tracks 1:1)">
+                <header class="fc-header">
+                    <span class="fc-ticker">
+                        {% if q.is_active %}<span class="fc-star" title="Active position">★</span>{% endif %}
+                        {{ q.micro }}
+                    </span>
+                    <span class="fc-name muted">{{ q.display }}</span>
+                </header>
+                {% if q.error %}
+                <div class="fc-error muted">data unavailable</div>
+                {% else %}
+                <div class="fc-price">{{ q.price_display }}</div>
+                <div class="fc-row">
+                    <span class="fc-change">{{ q.change_pct_display }}</span>
+                    <span class="fc-spark">{{ q.spark_svg|safe }}</span>
+                </div>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endfor %}
+
+    <footer class="futures-statusbar muted">
+        <span>
+            {% if cache_age == 0 %}
+                Just fetched
+            {% elif cache_age < 60 %}
+                Updated {{ cache_age }}s ago
+            {% else %}
+                Updated {{ (cache_age // 60) }}m ago
+            {% endif %}
+            · Source: Yahoo Finance
+        </span>
+        <button type="button" data-action="refresh-futures" class="btn-primary btn-sm">
+            Refresh
+        </button>
+    </footer>
+
+</div>

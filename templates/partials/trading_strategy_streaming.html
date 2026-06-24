@@ -1,0 +1,20 @@
+{# Streaming placeholder for a strategy run. SSE-connects to /trading/strategy/{slug}/stream
+   and swaps in subprocess output as it arrives, then the rendered chart on `done`.
+
+   IMPORTANT: `sse-close="done"` MUST live on the same element as `sse-connect` —
+   otherwise htmx-ext-sse never closes the connection and the browser auto-reconnects
+   forever (which would re-fire the server-side subprocess in a loop). This is the
+   same fix as the X Agent brief streaming partial; bug found + documented 2026-05-02. #}
+<div class="strategy-output"
+     hx-ext="sse"
+     sse-connect="/trading/strategy/{{ slug }}/stream{% if qs %}?{{ qs }}{% endif %}"
+     sse-close="done">
+    <div class="strategy-streaming-header muted">
+        <span class="cursor-blink">▍</span>
+        Running <code>python -m {{ strategy.module }} --save …</code>
+    </div>
+    <div id="strategy-stream-content-{{ slug }}"
+         sse-swap="message,done">
+        <pre class="subprocess-output muted">Waiting for first output…</pre>
+    </div>
+</div>

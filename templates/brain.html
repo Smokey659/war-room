@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Brain — War Room{% endblock %}
+{% block body_class %}brain-body{% endblock %}
+
+{% block content %}
+<div class="app">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <a href="/" class="back-link" title="Back to dashboard">← Dashboard</a>
+            <h1>Brain</h1>
+            <button hx-post="/threads"
+                    class="btn-primary"
+                    title="Start a new chat">
+                + New chat
+            </button>
+        </div>
+
+        <div class="sidebar-actions">
+            <button hx-post="/reindex"
+                    hx-target="#reindex-status"
+                    hx-swap="innerHTML"
+                    hx-confirm="Re-index the vault now?"
+                    class="btn-secondary">
+                Reindex
+            </button>
+            <div id="reindex-status"></div>
+        </div>
+
+        <div class="sidebar-threads"
+             hx-get="/threads"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="muted">Loading threads…</div>
+        </div>
+    </aside>
+
+    <main class="chat-pane" id="chat-pane">
+        {% if show_welcome %}
+            {% include "partials/welcome.html" %}
+        {% else %}
+            {% include "partials/chat_pane.html" %}
+        {% endif %}
+    </main>
+</div>
+{% endblock %}

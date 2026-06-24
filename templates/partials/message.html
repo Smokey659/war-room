@@ -1,0 +1,21 @@
+<div class="message message-{{ msg.role }}" id="msg-{{ msg.id }}">
+    <div class="message-role">{{ msg.role }}</div>
+    <div class="message-content">{{ rendered_content | safe }}</div>
+    {% if msg.sources %}
+        <div class="message-sources">
+            <div class="sources-label">Sources</div>
+            <ul>
+                {% for s in msg.sources %}
+                    <li>
+                        <a href="{{ obsidian_url(s.path) }}" target="_blank" rel="noopener">{{ s.name }}</a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+    {% if msg.cost_usd is not none %}
+        <div class="message-meta muted">
+            {{ msg.input_tokens }} in · {{ msg.output_tokens }} out · ${{ "%.4f"|format(msg.cost_usd) }}
+        </div>
+    {% endif %}
+</div>

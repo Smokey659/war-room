@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}X Agent — War Room{% endblock %}
+{% block body_class %}x-agent-body{% endblock %}
+
+{% block content %}
+<div class="agent-page">
+    <header class="agent-page-header">
+        <a href="/" class="back-link">← Dashboard</a>
+        <h1>𝕏 X Agent</h1>
+        <p class="muted">Trending niche brief — `trending_main.py` from a button.</p>
+    </header>
+
+    <div class="agent-layout">
+        <aside class="agent-sidebar">
+            <h3>Past briefs</h3>
+            {% if past_briefs %}
+                <ul class="past-briefs">
+                    {% for b in past_briefs %}
+                        <li>
+                            <a href="/x-agent?view={{ b.date }}"
+                               class="past-brief-link {% if b.date == selected_date %}active{% endif %}">
+                                {{ b.date }}
+                                <span class="muted">({{ (b.size / 1024)|round(1) }} KB)</span>
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="muted">No past briefs yet.</div>
+            {% endif %}
+        </aside>
+
+        <main class="agent-main">
+            {# Card 1: Trending brief (cached or generate) #}
+            <section class="brief-section">
+                <div class="brief-section-header">
+                    <h2>
+                        {% if is_today %}Today's brief{% else %}Brief for {{ selected_date }}{% endif %}
+                    </h2>
+                    <div class="brief-actions">
+                        {% if is_today %}
+                            {% if today_exists %}
+                                <button hx-post="/x-agent/brief/generate"
+                                        hx-target="#brief-output"
+                                        hx-swap="innerHTML"
+                                        hx-confirm="Regenerate today's brief? This will run trending_main.py again ($ + ~30-60s)."
+                                        class="btn-secondary">
+                                    Regenerate
+                                </button>
+                            {% else %}
+                                <button hx-post="/x-agent/brief/generate"
+                                        hx-target="#brief-output"
+                                        hx-swap="innerHTML"
+                                        class="btn-primary">
+                                    Generate today's brief
+                                </button>
+                            {% endif %}
+                        {% else %}
+                            <a href="/x-agent" class="btn-secondary">← Back to today</a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div id="brief-output">
+                    {% if is_running %}
+                        <div class="brief-output">
+                            <div class="muted">A run is in progress. Refresh in a moment to see the final output.</div>
+                        </div>
+                    {% elif selected_brief_html %}
+                        <div class="brief-rendered message-content">
+                            {{ selected_brief_html | safe }}
+                        </div>
+                    {% else %}
+                        {% if is_today %}
+                            <div class="brief-empty muted">
+                                No brief generated for today yet. Click <em>Generate</em>.
+                            </div>
+                        {% else %}
+                            <div class="brief-empty muted">
+                                No brief found for this date.
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </section>
+
+            {# Card 2: Reply bot (account picker + scrape FYP for 60 drafts) #}
+            <section class="brief-section reply-bot-section">
+                <div class="brief-section-header">
+                    <h2>Reply bot</h2>
+                    <div class="muted" style="font-size: 12px;">
+                        FYP scrape · 60 drafts · per-account prompt
+                    </div>
+                </div>
+
+                <form hx-post="/x-agent/replies/generate"
+                      hx-target="#replies-output"
+                      hx-swap="innerHTML"
+                      hx-confirm="Run the reply bot? This opens a Playwright browser, scrapes the For You feed, and generates ~60 drafts ($ + a few minutes)."
+                      class="reply-bot-form">
+
+                    <div class="account-picker">
+                        <div class="account-picker-label">Choose account:</div>
+                        {% for acct in accounts %}
+                            <label class="account-option">
+                                <input type="radio"
+                                       name="account"
+                                       value="{{ acct.key }}"
+                                       {% if loop.first %}checked{% endif %}>
+                                <span class="account-option-name">{{ acct.display_name }}</span>
+                                <span class="account-option-desc muted">{{ acct.description }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+
+                    <button type="submit" class="btn-primary" {% if is_running %}disabled{% endif %}>
+                        {% if is_running %}Run in progress…{% else %}Run reply bot{% endif %}
+                    </button>
+                </form>
+
+                <div id="replies-output">
+                    {% if is_running %}
+                        <div class="brief-output">
+                            <div class="muted">An X agent run is currently in progress (brief or replies). Wait for it to complete before starting a new one.</div>
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+{% endblock %}

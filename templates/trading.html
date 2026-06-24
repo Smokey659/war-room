@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Trading — War Room{% endblock %}
+{% block body_class %}trading-body{% endblock %}
+
+{% block content %}
+<div class="agent-page">
+    <header class="agent-page-header">
+        <a href="/" class="back-link">← Dashboard</a>
+        <h1>📈 Trading</h1>
+        <p class="muted">Visual regime widgets. Click Run to refresh; chart renders inline.</p>
+    </header>
+
+    <div class="trading-strategies">
+        <section class="strategy-card trading-entrypoint">
+            <div class="strategy-header">
+                <h2>📊 Futures Map</h2>
+                <p class="strategy-description muted">
+                    Live quotes for all Robinhood-supported futures, grouped by sector. 5-day sparkline on each card. Active positions highlighted.
+                </p>
+            </div>
+            <a href="/trading/futures" class="btn-primary">Open Map →</a>
+        </section>
+
+        {% for s in strategies %}
+        <section class="strategy-card">
+            <div class="strategy-header">
+                <h2>{{ s.icon }} {{ s.display_name }}</h2>
+                <p class="strategy-description muted">{{ s.description }}</p>
+            </div>
+
+            <form hx-post="/trading/strategy/{{ s.slug }}/run"
+                  hx-target="#strategy-output-{{ s.slug }}"
+                  hx-swap="innerHTML"
+                  class="strategy-form">
+                {% if s.args %}
+                <div class="strategy-args">
+                    {% for arg in s.args %}
+                    <label class="strategy-arg">
+                        <span class="arg-label">{{ arg.label }}</span>
+                        <input type="{{ arg.type }}"
+                               name="{{ arg.name }}"
+                               value="{{ arg.default }}"
+                               placeholder="{{ arg.placeholder|default('') }}"
+                               class="arg-input"/>
+                        {% if arg.help %}<span class="arg-help muted">{{ arg.help }}</span>{% endif %}
+                    </label>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <button type="submit" class="btn-primary" {% if s.is_running %}disabled{% endif %}>
+                    {% if s.is_running %}
+                        Running…
+                    {% elif s.latest_output %}
+                        Re-run
+                    {% else %}
+                        Run
+                    {% endif %}
+                </button>
+            </form>
+
+            <div id="strategy-output-{{ s.slug }}" class="strategy-output-container">
+                {% if s.is_running %}
+                    <div class="strategy-output">
+                        <div class="muted">A run is in progress. Refresh to see the result.</div>
+                    </div>
+                {% elif s.latest_output %}
+                    <div class="strategy-output">
+                        <div class="strategy-chart-wrapper">
+                            <img src="/trading/output/{{ s.latest_output }}"
+                                 alt="{{ s.display_name }} chart"
+                                 class="strategy-chart"/>
+                        </div>
+                        <div class="muted strategy-meta">
+                            Last run: {{ (s.latest_age_seconds // 60) }}m ago
+                            {% if s.latest_age_seconds >= 3600 %}
+                                ({{ (s.latest_age_seconds // 3600) }}h)
+                            {% endif %}
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="strategy-empty muted">
+                        No chart yet. Click Run to generate.
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
