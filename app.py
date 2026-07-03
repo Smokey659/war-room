@@ -23,7 +23,7 @@ import re
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -33,6 +33,8 @@ from agents import futures, market, portfolio, trading, x_agent
 from config import HOST, PORT, RENDER_MODE, VAULT_PATH, WAR_ROOM_PASSWORD
 from conversations import threads as t
 from conversations.db import init_db
+from crm import db as crm_db
+from crm import ingest as crm_ingest
 from conversations.threads import Source, derive_title_from_first_message
 from llm.claude_client import stream_response
 from retrieval.indexer import index_size, reindex_vault
@@ -114,6 +116,7 @@ _WIKILINK_RE = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
 @app.on_event("startup")
 async def startup() -> None:
     init_db()
+    crm_db.init_crm_db()
     # If the vault index is empty, build it on first run. Otherwise leave alone —
     # user can hit the Reindex button manually.
     if index_size() == 0:
@@ -208,14 +211,14 @@ TILES: list[dict] = [
         "status_class": "status-live",
     },
     {
-        "slug": "sap-deals",
+        "slug": "crm",
         "icon": "🤝",
-        "title": "SAP Deals",
-        "description": "Active pipeline, campaign tracker, mentor-session prep.",
-        "href": "/coming-soon/sap-deals",
-        "enabled": False,
-        "status": "Coming soon",
-        "status_class": "status-soon",
+        "title": "CRM",
+        "description": "Personal pipeline — deals, contacts, activity, reminders.",
+        "href": "/crm",
+        "enabled": True,
+        "status": None,
+        "status_class": "status-live",
     },
     {
         "slug": "vault",
@@ -1293,6 +1296,185 @@ async def reindex(request: Request):
 @app.get("/health")
 async def health():
     return {"status": "ok", "indexed_notes": index_size(), "vault": str(VAULT_PATH)}
+
+
+# ---------------------------------------------------------------------------
+# CRM — personal pipeline (standalone crm.db; see crm/db.py for the contract)
+# ---------------------------------------------------------------------------
+
+_CRM_DEAL_COLS = """d.id, d.opp_id, d.name, d.product, d.phase, d.days_in_phase,
+    d.forecast_cat, d.close_date, d.close_quarter, d.amount_1x, d.amount_mp,
+    d.opp_owner, d.untouched_days, d.passive, d.renewal, d.status, d.motion,
+    d.next_step, d.next_step_date, d.user_notes, d.source, d.source_hub,
+    a.name AS account_name, a.id AS account_id"""
+
+
+def _crm_deals(conn, view: str) -> list:
+    base = f"SELECT {_CRM_DEAL_COLS} FROM deals d JOIN accounts a ON a.id = d.account_id"
+    if view == "all":
+        q = f"{base} ORDER BY d.amount_1x DESC NULLS LAST"
+    elif view == "passive":
+        q = f"{base} WHERE d.passive = 1 ORDER BY d.close_date"
+    elif view == "stale":
+        q = (f"{base} WHERE d.passive = 0 AND d.renewal = 0 AND d.status = 'active' "
+             f"AND COALESCE(d.untouched_days, 0) >= 30 ORDER BY d.untouched_days DESC")
+    elif view == "closing":
+        q = (f"{base} WHERE d.passive = 0 AND d.renewal = 0 AND d.status = 'active' "
+             f"AND d.close_date IS NOT NULL AND d.close_date <= date('now', '+60 days') "
+             f"ORDER BY d.close_date")
+    else:  # active (default)
+        q = (f"{base} WHERE d.passive = 0 AND d.renewal = 0 AND d.status = 'active' "
+             f"ORDER BY d.amount_1x DESC NULLS LAST")
+    return conn.execute(q).fetchall()
+
+
+@app.get("/crm", response_class=HTMLResponse)
+async def crm_home(request: Request, view: str = "active"):
+    crm_db.init_crm_db()
+    with crm_db.conn_ctx() as conn:
+        deals = _crm_deals(conn, view)
+        k = conn.execute("""
+            SELECT
+              (SELECT COALESCE(SUM(amount_1x),0) FROM deals WHERE passive=0 AND renewal=0 AND status='active') AS pipe_1x,
+              (SELECT COUNT(*) FROM deals WHERE passive=0 AND renewal=0 AND status='active') AS n_workable,
+              (SELECT COUNT(*) FROM deals WHERE passive=0 AND renewal=0 AND status='active'
+                 AND close_date IS NOT NULL AND close_date <= date('now','+60 days')) AS n_closing,
+              (SELECT COALESCE(SUM(amount_1x),0) FROM deals WHERE passive=0 AND renewal=0 AND status='active'
+                 AND close_date IS NOT NULL AND close_date <= date('now','+60 days')) AS closing_1x,
+              (SELECT COUNT(*) FROM deals WHERE passive=0 AND renewal=0 AND status='active'
+                 AND COALESCE(untouched_days,0) >= 30) AS n_stale,
+              (SELECT COUNT(*) FROM reminders WHERE done=0) AS n_reminders,
+              (SELECT COUNT(*) FROM deals WHERE passive=1) AS n_passive
+        """).fetchone()
+        # attention: stale actives + near closes, deduped, top 8
+        attention, seen = [], set()
+        for d in conn.execute(f"""SELECT {_CRM_DEAL_COLS} FROM deals d JOIN accounts a ON a.id=d.account_id
+                WHERE d.passive=0 AND d.renewal=0 AND d.status='active'
+                  AND COALESCE(d.untouched_days,0) >= 30
+                ORDER BY d.untouched_days DESC LIMIT 5"""):
+            attention.append({**dict(d), "reason": "stale"})
+            seen.add(d["id"])
+        for d in conn.execute(f"""SELECT {_CRM_DEAL_COLS} FROM deals d JOIN accounts a ON a.id=d.account_id
+                WHERE d.passive=0 AND d.renewal=0 AND d.status='active'
+                  AND d.close_date IS NOT NULL AND d.close_date <= date('now','+45 days')
+                ORDER BY d.close_date LIMIT 5"""):
+            if d["id"] not in seen:
+                attention.append({**dict(d), "reason": "closing"})
+        reminders = conn.execute("""
+            SELECT r.id, r.note, r.due_date, a.name AS account_name
+            FROM reminders r LEFT JOIN accounts a ON a.id = r.account_id
+            WHERE r.done = 0 ORDER BY COALESCE(r.due_date, '9999'), r.id DESC LIMIT 20""").fetchall()
+        recent = conn.execute("""
+            SELECT act.date, act.title, a.name AS account_name
+            FROM activities act JOIN accounts a ON a.id = act.account_id
+            ORDER BY act.date DESC, act.id DESC LIMIT 8""").fetchall()
+    return templates.TemplateResponse(request, "crm.html", {
+        "screen": "crm", "view": view, "deals": deals, "kpis": k,
+        "attention": attention[:8], "reminders": reminders, "recent": recent,
+    })
+
+
+@app.get("/crm/deal/{deal_id}", response_class=HTMLResponse)
+async def crm_deal(request: Request, deal_id: int):
+    with crm_db.conn_ctx() as conn:
+        deal = conn.execute(
+            f"SELECT {_CRM_DEAL_COLS} FROM deals d JOIN accounts a ON a.id=d.account_id WHERE d.id=?",
+            (deal_id,)).fetchone()
+        if not deal:
+            raise HTTPException(404, "deal not found")
+        contacts = conn.execute(
+            "SELECT * FROM contacts WHERE account_id=? ORDER BY org='customer' DESC, name",
+            (deal["account_id"],)).fetchall()
+        acts = conn.execute(
+            "SELECT * FROM activities WHERE account_id=? ORDER BY date DESC, id DESC",
+            (deal["account_id"],)).fetchall()
+        activities = [{**dict(a), "steps": json.loads(a["next_steps"] or "[]")} for a in acts]
+        reminders = conn.execute(
+            "SELECT * FROM reminders WHERE done=0 AND (deal_id=? OR account_id=?) ORDER BY id DESC LIMIT 12",
+            (deal_id, deal["account_id"])).fetchall()
+    hub_url = _obsidian_url(deal["source_hub"]) if deal["source_hub"] else None
+    return templates.TemplateResponse(request, "crm_deal.html", {
+        "screen": "crm", "deal": deal, "contacts": contacts,
+        "activities": activities, "reminders": reminders, "hub_url": hub_url,
+    })
+
+
+@app.post("/crm/deal/{deal_id}/edit")
+async def crm_deal_edit(deal_id: int,
+                        status: str = Form("active"), motion: str = Form(""),
+                        next_step: str = Form(""), next_step_date: str = Form(""),
+                        user_notes: str = Form("")):
+    with crm_db.conn_ctx() as conn:
+        conn.execute(
+            """UPDATE deals SET status=?, motion=?, next_step=?, next_step_date=?,
+               user_notes=?, updated_at=? WHERE id=?""",
+            (status, motion or None, next_step or None, next_step_date or None,
+             user_notes or None, crm_db.now(), deal_id))
+    return RedirectResponse(f"/crm/deal/{deal_id}", status_code=303)
+
+
+@app.post("/crm/reminder/{reminder_id}/done")
+async def crm_reminder_done(reminder_id: int, next: str = "/crm"):
+    with crm_db.conn_ctx() as conn:
+        conn.execute("UPDATE reminders SET done=1 WHERE id=?", (reminder_id,))
+    return RedirectResponse(next, status_code=303)
+
+
+@app.get("/crm/import", response_class=HTMLResponse)
+async def crm_import_page(request: Request, result: str | None = None):
+    crm_db.init_crm_db()
+    with crm_db.conn_ctx() as conn:
+        rows = conn.execute("SELECT * FROM imports ORDER BY imported_at DESC LIMIT 20").fetchall()
+    from datetime import datetime as _dt
+    imports = [{**dict(r), "when": _dt.fromtimestamp(r["imported_at"]).strftime("%m-%d %H:%M")} for r in rows]
+    res = json.loads(result) if result else None
+    return templates.TemplateResponse(request, "crm_import.html", {
+        "screen": "crm", "imports": imports, "result": res,
+    })
+
+
+@app.post("/crm/import")
+async def crm_import(request: Request, file: UploadFile = File(...)):
+    """Route an uploaded file to the right ingest by extension."""
+    _local_only()
+    crm_db.init_crm_db()
+    suffix = Path(file.filename or "upload").suffix.lower()
+    stamped = f"{int(_time.time())}-{Path(file.filename or 'upload').name}"
+    dest = crm_db.CRM_INBOX / stamped
+    dest.write_bytes(await file.read())
+
+    result: dict = {"kind": suffix.lstrip("."), "filename": file.filename}
+    try:
+        if suffix == ".xlsx":
+            result["kind"] = "sap-export"
+            result.update(await asyncio.to_thread(crm_ingest.ingest_sap_export, dest, file.filename))
+        elif suffix == ".json":
+            records = json.loads(dest.read_text())
+            result["kind"] = "meeting-notes"
+            result.update(crm_ingest.ingest_meeting_notes(records, file.filename))
+        elif suffix in (".docx", ".md", ".txt"):
+            text = (crm_ingest.docx_to_text(dest) if suffix == ".docx"
+                    else dest.read_text(errors="ignore"))
+            records = await asyncio.to_thread(crm_ingest.extract_notes_from_text, text)
+            result["kind"] = "notes-extraction"
+            result.update(crm_ingest.ingest_meeting_notes(records, file.filename))
+        else:
+            result["error"] = f"unsupported file type: {suffix}"
+    except Exception as exc:  # surface ingest failures honestly on the page
+        result["error"] = str(exc)[:300]
+
+    return RedirectResponse(f"/crm/import?result={quote(json.dumps(result))}", status_code=303)
+
+
+@app.post("/crm/seed-vault")
+async def crm_seed_vault():
+    _local_only()
+    result = {"kind": "vault-seed", "filename": None}
+    try:
+        result.update(await asyncio.to_thread(crm_ingest.seed_from_vault))
+    except Exception as exc:
+        result["error"] = str(exc)[:300]
+    return RedirectResponse(f"/crm/import?result={quote(json.dumps(result))}", status_code=303)
 
 
 # ---------------------------------------------------------------------------

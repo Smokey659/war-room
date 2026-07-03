@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}CRM Import — War Room{% endblock %}
+
+{% block content %}
+<div class="crm-layout fade-in">
+
+    <div class="crm-main">
+
+        {% if result %}
+        <section class="panel">
+            <div class="panel-head"><span class="panel-title">Import Result</span>
+                <span class="pill {{ 'pill-ok' if not result.error else '' }}">{{ result.kind|upper }}</span></div>
+            <div class="panel-body">
+                {% if result.error %}
+                    <div class="down">✗ {{ result.error }}</div>
+                {% else %}
+                    <div class="up">✓ {{ result.added }} added · {{ result.updated }} updated · {{ result.skipped }} skipped
+                        {% if result.filename %} — {{ result.filename }}{% endif %}</div>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="panel">
+            <div class="panel-head"><span class="panel-title">Import Data</span></div>
+            <div class="panel-body">
+                <form method="post" action="/crm/import" enctype="multipart/form-data" class="import-form">
+                    <input type="file" name="file" required
+                           accept=".xlsx,.json,.docx,.md,.txt">
+                    <button class="btn btn-amber btn-sm" type="submit">⇪ UPLOAD & INGEST</button>
+                </form>
+                <div class="subline" style="margin-top:10px;">
+                    <b>.xlsx</b> → pipeline export (deals + accounts; system fields refresh, user fields preserved)<br>
+                    <b>.json</b> → meeting-notes records (activities + contacts + reminders)<br>
+                    <b>.docx / .md / .txt</b> → raw meeting notes — extracted to structured records via Claude, then ingested
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head"><span class="panel-title">Knowledge-Base Seed</span></div>
+            <div class="panel-body">
+                <form method="post" action="/crm/seed-vault">
+                    <button class="btn btn-secondary btn-sm" type="submit">⟲ RE-SCAN NOTES</button>
+                </form>
+                <div class="subline" style="margin-top:8px;">
+                    Deterministic pass: customer-call transcripts become activities; deal-hub notes link to their accounts. No LLM calls. Safe to re-run.
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head"><span class="panel-title">Import Log</span></div>
+            <div class="panel-body" style="padding-top:6px;">
+                {% if imports %}
+                <table class="dtable">
+                    <thead><tr><th>When</th><th>Kind</th><th>File</th><th>+</th><th>~</th><th>skip</th></tr></thead>
+                    <tbody>
+                    {% for i in imports %}
+                        <tr>
+                            <td class="muted">{{ i.when }}</td>
+                            <td>{{ i.kind }}</td>
+                            <td class="muted">{{ (i.filename or '—')[:40] }}</td>
+                            <td class="up">{{ i.added }}</td>
+                            <td class="amber">{{ i.updated }}</td>
+                            <td class="muted">{{ i.skipped }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="muted">No imports yet.</div>
+                {% endif %}
+            </div>
+        </section>
+    </div>
+
+    <aside class="crm-rail">
+        <section class="panel">
+            <div class="panel-head"><span class="panel-title">How It Fits</span></div>
+            <div class="panel-body subline">
+                The CRM is a standalone working surface. Imports carry provenance;
+                re-imports are idempotent. Your edits (status, next step, notes)
+                are never overwritten by any import.
+            </div>
+        </section>
+        <div><a class="btn btn-secondary btn-sm" href="/crm">← BACK TO DEALS</a></div>
+    </aside>
+</div>
+{% endblock %}

@@ -52,6 +52,8 @@
             <span class="rail-code">XA</span><span class="rail-label">X-AGENT</span></a>
         <a class="rail-item {% if screen == 'brain' %}active{% endif %}" href="/brain">
             <span class="rail-code">BR</span><span class="rail-label">BRAIN</span></a>
+        <a class="rail-item {% if screen == 'crm' %}active{% endif %}" href="/crm">
+            <span class="rail-code">CR</span><span class="rail-label">CRM</span></a>
         <div class="rail-foot">
             <span class="rail-live"><span class="dot"></span>LIVE</span>
             <span class="rail-cfg">⚙ CFG</span>
@@ -115,7 +117,8 @@
         const cmd = document.getElementById('cmd');
         const ROUTES = { OV: '/', OVERVIEW: '/', TR: '/trading', TRADING: '/trading',
                          FU: '/trading', FUTURES: '/trading', XA: '/x-agent',
-                         'X-AGENT': '/x-agent', XAGENT: '/x-agent', BR: '/brain', BRAIN: '/brain' };
+                         'X-AGENT': '/x-agent', XAGENT: '/x-agent', BR: '/brain', BRAIN: '/brain',
+                         CR: '/crm', CRM: '/crm', DEALS: '/crm' };
         cmd.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
                 const code = cmd.value.trim().toUpperCase();

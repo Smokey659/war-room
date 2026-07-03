@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}CRM — War Room{% endblock %}
+
+{% block content %}
+<div class="crm-layout fade-in">
+
+    {# ================= MAIN COLUMN ================= #}
+    <div class="crm-main">
+
+        {# ---- KPI strip ---- #}
+        <div class="kpi-strip">
+            <div class="kpi">
+                <div class="kpi-label">Workable Pipe (1x)</div>
+                <div class="kpi-value">${{ '{:,.0f}'.format(kpis.pipe_1x) }}</div>
+                <div class="kpi-sub">{{ kpis.n_workable }} open deals</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">Closing ≤ 60d</div>
+                <div class="kpi-value">{{ kpis.n_closing }}</div>
+                <div class="kpi-sub">${{ '{:,.0f}'.format(kpis.closing_1x) }} 1x</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">Stale ≥ 30d</div>
+                <div class="kpi-value {{ 'down' if kpis.n_stale else '' }}">{{ kpis.n_stale }}</div>
+                <div class="kpi-sub">untouched deals</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">Open Reminders</div>
+                <div class="kpi-value">{{ kpis.n_reminders }}</div>
+                <div class="kpi-sub">{{ kpis.n_passive }} passive (concur) hidden</div>
+            </div>
+        </div>
+
+        {# ---- Deals table ---- #}
+        <section class="panel">
+            <div class="panel-head">
+                <span class="panel-title">Deals</span>
+                <span class="filter-chips">
+                    {% for f in [('active','ACTIVE'), ('stale','STALE'), ('closing','CLOSING'), ('passive','PASSIVE'), ('all','ALL')] %}
+                        <a class="chip {{ 'chip-on' if view == f[0] else '' }}" href="/crm?view={{ f[0] }}">{{ f[1] }}</a>
+                    {% endfor %}
+                </span>
+            </div>
+            <div class="panel-body" style="padding-top:6px;">
+                {% if deals %}
+                <table class="dtable">
+                    <thead><tr>
+                        <th>Account</th><th>Deal</th><th>Product</th><th>Ph</th>
+                        <th>1x</th><th>Close</th><th>Unt.</th><th>Owner</th>
+                    </tr></thead>
+                    <tbody>
+                    {% for d in deals %}
+                        <tr class="rowlink" onclick="window.location='/crm/deal/{{ d.id }}'">
+                            <td><span class="sym-cell"><span class="sym-tick">{{ d.account_name }}</span>
+                                {% if d.source_hub %}<span class="sym-sub">📓 hub</span>{% endif %}</span></td>
+                            <td class="muted">{{ d.name[:38] }}</td>
+                            <td>{{ d.product or '—' }}</td>
+                            <td>{{ d.phase or '—' }}</td>
+                            <td>{% if d.amount_1x %}${{ '{:,.0f}'.format(d.amount_1x) }}{% else %}—{% endif %}</td>
+                            <td>{{ d.close_date or '—' }}</td>
+                            <td class="{{ 'down' if (d.untouched_days or 0) >= 30 else ('amber' if (d.untouched_days or 0) >= 14 else 'up') }}">
+                                {{ d.untouched_days if d.untouched_days is not none else '—' }}</td>
+                            <td class="muted">{{ (d.opp_owner or '—').split(' ')[0] }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state">
+                    <div class="es-title">No deals yet</div>
+                    Import a pipeline export on the <a href="/crm/import">Import</a> page.
+                </div>
+                {% endif %}
+            </div>
+            <div class="tfoot">
+                <span>{{ deals|length }} SHOWN · VIEW: {{ view|upper }}</span>
+                <span><a class="btn btn-sm btn-secondary" href="/crm/import">⇪ IMPORT</a></span>
+            </div>
+        </section>
+    </div>
+
+    {# ================= RIGHT RAIL ================= #}
+    <aside class="crm-rail">
+
+        {# ---- Needs attention ---- #}
+        <section class="panel">
+            <div class="panel-head"><span class="panel-title">Needs Attention</span></div>
+            <div class="panel-body">
+                {% if attention %}
+                    {% for d in attention %}
+                    <div class="acct-row">
+                        <span class="k"><a href="/crm/deal/{{ d.id }}">{{ d.account_name[:20] }}</a></span>
+                        <span class="v {{ 'down' if d.reason == 'stale' else 'amber' }}">
+                            {% if d.reason == 'stale' %}{{ d.untouched_days }}d untouched{% else %}closes {{ d.close_date }}{% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="muted">Nothing urgent.</div>
+                {% endif %}
+            </div>
+        </section>
+
+        {# ---- Open reminders ---- #}
+        <section class="panel">
+            <div class="panel-head"><span class="panel-title">Reminders</span>
+                <span class="pill">{{ reminders|length }} OPEN</span></div>
+            <div class="panel-body">
+                {% for r in reminders[:8] %}
+                <div class="rem-row">
+                    <form method="post" action="/crm/reminder/{{ r.id }}/done" class="rem-check">
+                        <button class="rem-btn" title="mark done">☐</button>
+                    </form>
+                    <span class="rem-note">{{ r.note[:90] }}</span>
+                    {% if r.account_name %}<span class="sym-sub">{{ r.account_name[:18] }}</span>{% endif %}
+                </div>
+                {% else %}
+                <div class="muted">No open reminders.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        {# ---- Recent activity ---- #}
+        <section class="panel">
+            <div class="panel-head"><span class="panel-title">Recent Activity</span></div>
+            <div class="panel-body">
+                {% for a in recent %}
+                <div class="act-row">
+                    <span class="act-date">{{ a.date }}</span>
+                    <span class="act-body"><b>{{ a.account_name[:22] }}</b> — {{ a.title[:55] }}</span>
+                </div>
+                {% else %}
+                <div class="muted">No activity captured yet.</div>
+                {% endfor %}
+            </div>
+        </section>
+    </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}{{ deal.account_name }} — CRM — War Room{% endblock %}
+
+{% block content %}
+<div class="crm-layout fade-in">
+
+    {# ================= MAIN COLUMN ================= #}
+    <div class="crm-main">
+
+        <section class="panel">
+            <div class="panel-head">
+                <span class="panel-title">{{ deal.account_name }} · {{ deal.product or 'Deal' }}</span>
+                <span>
+                    {% if deal.passive %}<span class="pill">PASSIVE</span>{% endif %}
+                    {% if deal.renewal %}<span class="pill">RENEWAL</span>{% endif %}
+                    <span class="pill">{{ (deal.status or 'active')|upper }}</span>
+                </span>
+            </div>
+            <div class="subline">{{ deal.name }} · OPP {{ deal.opp_id or '—' }}</div>
+            <div class="panel-body">
+                <div class="acct-grid">
+                    <div class="inset"><div class="inset-label">Pipe (1x)</div>
+                        <div class="inset-value">{% if deal.amount_1x %}${{ '{:,.0f}'.format(deal.amount_1x) }}{% else %}—{% endif %}</div></div>
+                    <div class="inset"><div class="inset-label">Phase</div>
+                        <div class="inset-value">{{ deal.phase or '—' }} <span class="muted">({{ deal.days_in_phase or 0 }}d)</span></div></div>
+                    <div class="inset"><div class="inset-label">Close</div>
+                        <div class="inset-value">{{ deal.close_date or '—' }}</div></div>
+                    <div class="inset"><div class="inset-label">Untouched</div>
+                        <div class="inset-value {{ 'down' if (deal.untouched_days or 0) >= 30 else '' }}">{{ deal.untouched_days if deal.untouched_days is not none else '—' }}d</div></div>
+                </div>
+                <div class="acct-rows">
+                    <div class="acct-row"><span class="k">Opp owner</span><span class="v">{{ deal.opp_owner or '—' }}</span></div>
+                    <div class="acct-row"><span class="k">Forecast</span><span class="v">{{ deal.forecast_cat or '—' }} · {{ deal.close_quarter or '' }}</span></div>
+                    <div class="acct-row"><span class="k">Source</span><span class="v">{{ deal.source }}</span></div>
+                    {% if deal.source_hub %}
+                    <div class="acct-row"><span class="k">Deal hub</span>
+                        <span class="v"><a class="wikilink" href="{{ hub_url }}">{{ deal.source_hub.split('/')[-1] }}</a></span></div>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+
+        {# ---- Working fields (user-owned; ingest never touches) ---- #}
+        <section class="panel">
+            <div class="panel-head"><span class="panel-title">Working Notes</span>
+                <span class="pill">USER-OWNED</span></div>
+            <div class="panel-body">
+                <form method="post" action="/crm/deal/{{ deal.id }}/edit" class="edit-grid">
+                    <label>Status
+                        <select name="status">
+                            {% for s in ['active','stalled','no-bid','lost','won'] %}
+                            <option value="{{ s }}" {{ 'selected' if deal.status == s else '' }}>{{ s }}</option>
+                            {% endfor %}
+                        </select></label>
+                    <label>Motion
+                        <select name="motion">
+                            {% for m in ['', 'anchor','small-deal','passive'] %}
+                            <option value="{{ m }}" {{ 'selected' if (deal.motion or '') == m else '' }}>{{ m or '—' }}</option>
+                            {% endfor %}
+                        </select></label>
+                    <label>Next step date
+                        <input type="date" name="next_step_date" value="{{ deal.next_step_date or '' }}"></label>
+                    <label class="span2">Next step
+                        <input type="text" name="next_step" value="{{ deal.next_step or '' }}" placeholder="the single next move"></label>
+                    <label class="span2">Notes
+                        <textarea name="user_notes" rows="4" placeholder="working notes (never overwritten by imports)">{{ deal.user_notes or '' }}</textarea></label>
+                    <div class="span2"><button class="btn btn-amber btn-sm" type="submit">SAVE</button></div>
+                </form>
+            </div>
+        </section>
+
+        {# ---- Activity timeline ---- #}
+        <section class="panel">
+            <div class="panel-head"><span class="panel-title">Activity — {{ deal.account_name }}</span>
+                <span class="pill">{{ activities|length }}</span></div>
+            <div class="panel-body">
+                {% for a in activities %}
+                <div class="act-item">
+                    <div class="act-head">
+                        <span class="act-date">{{ a.date }}</span>
+                        <b>{{ a.title }}</b>
+                        <span class="sym-sub">{{ a.type }} · {{ a.source }}</span>
+                    </div>
+                    {% if a.summary %}<div class="act-summary">{{ a.summary }}</div>{% endif %}
+                    {% if a.steps %}
+                    <ul class="act-steps">
+                        {% for s in a.steps %}<li>{{ s }}</li>{% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="empty-state"><div class="es-title">No activity yet</div>
+                    Import meeting notes or run the vault seed.</div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+
+    {# ================= RIGHT RAIL ================= #}
+    <aside class="crm-rail">
+        <section class="panel">
+            <div class="panel-head"><span class="panel-title">Contacts</span>
+                <span class="pill">{{ contacts|length }}</span></div>
+            <div class="panel-body">
+                {% for c in contacts %}
+                <div class="contact-row">
+                    <div><b>{{ c.name }}</b>
+                        {% if c.role_status %}<span class="pill">{{ c.role_status|upper }}</span>{% endif %}</div>
+                    <div class="sym-sub">{{ c.title or '' }}{% if c.org != 'customer' %} · {{ c.org|upper }}{% endif %}</div>
+                    {% if c.last_touch %}<div class="muted">last touch {{ c.last_touch }}</div>{% endif %}
+                </div>
+                {% else %}
+                <div class="muted">No contacts captured.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head"><span class="panel-title">Reminders</span></div>
+            <div class="panel-body">
+                {% for r in reminders %}
+                <div class="rem-row">
+                    <form method="post" action="/crm/reminder/{{ r.id }}/done?next=/crm/deal/{{ deal.id }}" class="rem-check">
+                        <button class="rem-btn" title="mark done">☐</button>
+                    </form>
+                    <span class="rem-note">{{ r.note[:90] }}</span>
+                </div>
+                {% else %}
+                <div class="muted">None open for this account.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <div><a class="btn btn-secondary btn-sm" href="/crm">← BACK TO DEALS</a></div>
+    </aside>
+</div>
+{% endblock %}
