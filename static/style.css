@@ -467,6 +467,16 @@ body.shell {
 .btn-secondary:hover { border-color: var(--tx-mute); }
 .btn-sm { padding: 4px 10px; font-size: 9px; }
 
+/* streaming (SSE) output blocks */
+.subprocess-output {
+  font-family: var(--mono); font-size: 10px; line-height: 1.6; color: var(--tx-2nd);
+  white-space: pre-wrap; word-break: break-word; margin-top: 6px;
+}
+.brief-streaming-header, .strategy-streaming-header {
+  font-size: 9.5px; letter-spacing: 1px; color: var(--tx-mute); text-transform: uppercase;
+}
+.cursor-blink { color: var(--amber); animation: wr-blink 1s infinite; }
+
 /* ============================================================================
    ANIMATIONS
    ========================================================================== */

@@ -1,132 +1,108 @@
 {% extends "base.html" %}
-{% block title %}X Agent — War Room{% endblock %}
-{% block body_class %}x-agent-body{% endblock %}
+{% block title %}X-Agent — War Room{% endblock %}
 
 {% block content %}
-<div class="agent-page">
-    <header class="agent-page-header">
-        <a href="/" class="back-link">← Dashboard</a>
-        <h1>𝕏 X Agent</h1>
-        <p class="muted">Trending niche brief — `trending_main.py` from a button.</p>
-    </header>
+<div class="xa-layout fade-in">
 
-    <div class="agent-layout">
-        <aside class="agent-sidebar">
-            <h3>Past briefs</h3>
-            {% if past_briefs %}
-                <ul class="past-briefs">
-                    {% for b in past_briefs %}
-                        <li>
-                            <a href="/x-agent?view={{ b.date }}"
-                               class="past-brief-link {% if b.date == selected_date %}active{% endif %}">
-                                {{ b.date }}
-                                <span class="muted">({{ (b.size / 1024)|round(1) }} KB)</span>
-                            </a>
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <div class="muted">No past briefs yet.</div>
-            {% endif %}
-        </aside>
-
-        <main class="agent-main">
-            {# Card 1: Trending brief (cached or generate) #}
-            <section class="brief-section">
-                <div class="brief-section-header">
-                    <h2>
-                        {% if is_today %}Today's brief{% else %}Brief for {{ selected_date }}{% endif %}
-                    </h2>
-                    <div class="brief-actions">
-                        {% if is_today %}
-                            {% if today_exists %}
-                                <button hx-post="/x-agent/brief/generate"
-                                        hx-target="#brief-output"
-                                        hx-swap="innerHTML"
-                                        hx-confirm="Regenerate today's brief? This will run trending_main.py again ($ + ~30-60s)."
-                                        class="btn-secondary">
-                                    Regenerate
-                                </button>
-                            {% else %}
-                                <button hx-post="/x-agent/brief/generate"
-                                        hx-target="#brief-output"
-                                        hx-swap="innerHTML"
-                                        class="btn-primary">
-                                    Generate today's brief
-                                </button>
-                            {% endif %}
+    {# ================= MAIN: the brief ================= #}
+    <div class="xa-main">
+        <section class="panel">
+            <div class="panel-head">
+                <span class="panel-title">{% if is_today %}Today's Brief{% else %}Brief · {{ selected_date }}{% endif %}</span>
+                <span style="display:flex;gap:8px;align-items:center;">
+                    <span class="pill">{{ selected_date }}</span>
+                    {% if is_today %}
+                        {% if render_mode %}
+                            <span class="pill">LOCAL ONLY</span>
+                        {% elif today_exists %}
+                            <button hx-post="/x-agent/brief/generate" hx-target="#brief-output" hx-swap="innerHTML"
+                                    hx-confirm="Regenerate today's brief? Runs trending_main.py again ($ + ~30-60s)."
+                                    class="btn btn-sm">↻ Regen</button>
                         {% else %}
-                            <a href="/x-agent" class="btn-secondary">← Back to today</a>
+                            <button hx-post="/x-agent/brief/generate" hx-target="#brief-output" hx-swap="innerHTML"
+                                    class="btn btn-amber btn-sm">▸ Generate</button>
                         {% endif %}
-                    </div>
-                </div>
-
+                    {% else %}
+                        <a href="/x-agent" class="btn btn-sm">← Today</a>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="panel-body">
                 <div id="brief-output">
                     {% if is_running %}
-                        <div class="brief-output">
-                            <div class="muted">A run is in progress. Refresh in a moment to see the final output.</div>
-                        </div>
+                        <div class="brief-output"><div class="muted">A run is in progress. Refresh in a moment to see the final output.</div></div>
                     {% elif selected_brief_html %}
-                        <div class="brief-rendered message-content">
-                            {{ selected_brief_html | safe }}
-                        </div>
+                        <div class="brief-rendered message-content">{{ selected_brief_html | safe }}</div>
                     {% else %}
-                        {% if is_today %}
-                            <div class="brief-empty muted">
-                                No brief generated for today yet. Click <em>Generate</em>.
-                            </div>
-                        {% else %}
-                            <div class="brief-empty muted">
-                                No brief found for this date.
-                            </div>
-                        {% endif %}
+                        <div class="empty-state">
+                            <div class="es-title">No brief {% if is_today %}yet today{% else %}for this date{% endif %}</div>
+                            {% if is_today and not render_mode %}Hit ▸ GENERATE to run the trending scan.{% endif %}
+                            {% if render_mode %}Brief generation runs on the local Mac (Playwright).{% endif %}
+                        </div>
                     {% endif %}
                 </div>
-            </section>
+            </div>
+        </section>
+    </div>
 
-            {# Card 2: Reply bot (account picker + scrape FYP for 60 drafts) #}
-            <section class="brief-section reply-bot-section">
-                <div class="brief-section-header">
-                    <h2>Reply bot</h2>
-                    <div class="muted" style="font-size: 12px;">
-                        FYP scrape · 60 drafts · per-account prompt
-                    </div>
-                </div>
+    {# ================= RIGHT RAIL ================= #}
+    <aside class="xa-rail">
 
-                <form hx-post="/x-agent/replies/generate"
-                      hx-target="#replies-output"
-                      hx-swap="innerHTML"
-                      hx-confirm="Run the reply bot? This opens a Playwright browser, scrapes the For You feed, and generates ~60 drafts ($ + a few minutes)."
+        {# ---- Reply bot ---- #}
+        <section class="panel">
+            <div class="panel-head">
+                <span class="panel-title">Reply Bot</span>
+                {% if render_mode %}<span class="pill">LOCAL ONLY</span>
+                {% elif is_running %}<span class="pill amber">RUNNING…</span>{% endif %}
+            </div>
+            <div class="panel-body">
+                <form hx-post="/x-agent/replies/generate" hx-target="#replies-output" hx-swap="innerHTML"
+                      hx-confirm="Run the reply bot? Opens a Playwright browser, scrapes the FYP, generates ~60 drafts ($ + a few minutes)."
                       class="reply-bot-form">
-
                     <div class="account-picker">
-                        <div class="account-picker-label">Choose account:</div>
+                        <div class="account-picker-label">Account</div>
                         {% for acct in accounts %}
-                            <label class="account-option">
-                                <input type="radio"
-                                       name="account"
-                                       value="{{ acct.key }}"
-                                       {% if loop.first %}checked{% endif %}>
-                                <span class="account-option-name">{{ acct.display_name }}</span>
+                        <label class="account-option">
+                            <input type="radio" name="account" value="{{ acct.key }}" {% if loop.first %}checked{% endif %}>
+                            <span>
+                                <span class="account-option-name">{{ acct.display_name }}</span><br>
                                 <span class="account-option-desc muted">{{ acct.description }}</span>
-                            </label>
+                            </span>
+                        </label>
                         {% endfor %}
                     </div>
-
-                    <button type="submit" class="btn-primary" {% if is_running %}disabled{% endif %}>
-                        {% if is_running %}Run in progress…{% else %}Run reply bot{% endif %}
+                    <button type="submit" class="btn btn-amber btn-block"
+                            {% if is_running or render_mode %}disabled{% endif %}>
+                        ▸ Run Reply Bot
                     </button>
                 </form>
-
-                <div id="replies-output">
+                <div class="strategy-meta" style="margin-top:8px;">FYP SCRAPE · 60 DRAFTS · PER-ACCOUNT PROMPT</div>
+                <div id="replies-output" style="margin-top:8px;">
                     {% if is_running %}
-                        <div class="brief-output">
-                            <div class="muted">An X agent run is currently in progress (brief or replies). Wait for it to complete before starting a new one.</div>
-                        </div>
+                        <div class="brief-output"><div class="muted">A run is in progress (brief or replies). Wait for it to finish.</div></div>
                     {% endif %}
                 </div>
-            </section>
-        </main>
-    </div>
+            </div>
+        </section>
+
+        {# ---- Past briefs ---- #}
+        <section class="panel">
+            <div class="panel-head"><span class="panel-title">Past Briefs</span></div>
+            <div class="panel-body" style="padding-top:4px;">
+                {% if past_briefs %}
+                    <ul class="past-briefs">
+                    {% for b in past_briefs %}
+                        <li><a href="/x-agent?view={{ b.date }}"
+                               class="past-brief-link {% if b.date == selected_date %}active{% endif %}">
+                            <span>{{ b.date }}</span>
+                            <span class="muted">{{ (b.size / 1024)|round(1) }} KB</span></a></li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="empty-state">No past briefs yet.</div>
+                {% endif %}
+            </div>
+        </section>
+    </aside>
 </div>
 {% endblock %}

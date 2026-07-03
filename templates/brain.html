@@ -1,40 +1,32 @@
 {% extends "base.html" %}
 {% block title %}Brain — War Room{% endblock %}
-{% block body_class %}brain-body{% endblock %}
 
 {% block content %}
-<div class="app">
-    <aside class="sidebar">
-        <div class="sidebar-header">
-            <a href="/" class="back-link" title="Back to dashboard">← Dashboard</a>
-            <h1>Brain</h1>
-            <button hx-post="/threads"
-                    class="btn-primary"
-                    title="Start a new chat">
-                + New chat
-            </button>
-        </div>
+<div class="brain-layout fade-in">
 
-        <div class="sidebar-actions">
-            <button hx-post="/reindex"
-                    hx-target="#reindex-status"
-                    hx-swap="innerHTML"
-                    hx-confirm="Re-index the vault now?"
-                    class="btn-secondary">
-                Reindex
-            </button>
-            <div id="reindex-status"></div>
+    {# ---- threads rail ---- #}
+    <aside class="panel threads-rail">
+        <div class="panel-head"><span class="panel-title">Threads</span></div>
+        <div style="padding:8px 8px 0;">
+            {% if render_mode %}
+                <span class="pill">LOCAL ONLY</span>
+            {% else %}
+                <button hx-post="/threads" class="btn btn-amber btn-block">+ New Chat</button>
+                <div class="sidebar-actions">
+                    <button hx-post="/reindex" hx-target="#reindex-status" hx-swap="innerHTML"
+                            hx-confirm="Re-index the vault now?" class="btn btn-sm">Reindex</button>
+                    <div id="reindex-status"></div>
+                </div>
+            {% endif %}
         </div>
-
-        <div class="sidebar-threads"
-             hx-get="/threads"
-             hx-trigger="load"
-             hx-swap="innerHTML">
+        <div class="panel-body sidebar-threads"
+             hx-get="/threads" hx-trigger="load" hx-swap="innerHTML">
             <div class="muted">Loading threads…</div>
         </div>
     </aside>
 
-    <main class="chat-pane" id="chat-pane">
+    {# ---- chat pane ---- #}
+    <main class="panel chat-shell" id="chat-pane">
         {% if show_welcome %}
             {% include "partials/welcome.html" %}
         {% else %}

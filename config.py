@@ -23,21 +23,38 @@ if ENV_PATH.exists():
     # set to "" somewhere upstream).
     load_dotenv(ENV_PATH, override=True)
 
-# ---- Required ----
+# ---- Deployment mode ----
+# RENDER_MODE=1 -> hosted (Render): no vault on disk, no local subprocuns
+# (X-Agent Playwright, strategy runners), no Anthropic key required. Local-only
+# features render honest "LOCAL ONLY" states instead of crashing.
+RENDER_MODE = os.getenv("RENDER_MODE", "0") == "1"
+
+# ---- Required (local) / optional (hosted) ----
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-if not ANTHROPIC_API_KEY:
+if not ANTHROPIC_API_KEY and not RENDER_MODE:
     raise RuntimeError(
         f"ANTHROPIC_API_KEY not set.\n"
         f"Create {ENV_PATH} with:\n\n"
         f"    ANTHROPIC_API_KEY=sk-ant-...\n"
     )
 
+# ---- Auth (hosted) ----
+# When set, every request must carry HTTP Basic auth with this password.
+# Unset locally -> no auth (Tailscale is the local boundary).
+WAR_ROOM_PASSWORD = os.getenv("WAR_ROOM_PASSWORD")
+
 # ---- Vault ----
 VAULT_PATH = Path(
     os.getenv("VAULT_PATH", "/Users/xandernostrand/Desktop/Second Brain")
 ).expanduser().resolve()
 if not VAULT_PATH.exists():
-    raise RuntimeError(f"VAULT_PATH does not exist: {VAULT_PATH}")
+    if RENDER_MODE:
+        # Hosted: no vault on this box. Point at an (empty) data-dir stub so the
+        # indexer sees zero notes rather than crashing.
+        VAULT_PATH = DATA_DIR / "vault_stub"
+        VAULT_PATH.mkdir(exist_ok=True)
+    else:
+        raise RuntimeError(f"VAULT_PATH does not exist: {VAULT_PATH}")
 
 # ---- Database ----
 DB_PATH = DATA_DIR / "war_room.db"
@@ -53,8 +70,9 @@ OUTPUT_PRICE_PER_M_USD = float(os.getenv("OUTPUT_PRICE_PER_M_USD", "15.00"))
 
 # ---- Server ----
 # Bind 0.0.0.0 so Tailscale can reach the dashboard from the SAP work laptop.
+# Render injects PORT; it wins over WAR_ROOM_PORT when present.
 HOST = os.getenv("WAR_ROOM_HOST", "0.0.0.0")
-PORT = int(os.getenv("WAR_ROOM_PORT", "8765"))
+PORT = int(os.getenv("PORT", os.getenv("WAR_ROOM_PORT", "8765")))
 
 # ---- Retrieval ----
 # Top-N vault notes to pull into Claude's context per query.

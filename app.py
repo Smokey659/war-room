@@ -29,8 +29,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markdown_it import MarkdownIt
 
-from agents import futures, portfolio, trading, x_agent
-from config import HOST, PORT, VAULT_PATH
+from agents import futures, market, portfolio, trading, x_agent
+from config import HOST, PORT, RENDER_MODE, VAULT_PATH, WAR_ROOM_PASSWORD
 from conversations import threads as t
 from conversations.db import init_db
 from conversations.threads import Source, derive_title_from_first_message
@@ -58,7 +58,43 @@ app = FastAPI(title="War Room")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 # Make cache-buster available in every template as `cache_v`.
 templates.env.globals["cache_v"] = _CACHE_V
+# Hosted-mode flag: templates render "LOCAL ONLY" states for features that need
+# the Mac (vault, Playwright, strategy subprocesses).
+templates.env.globals["render_mode"] = RENDER_MODE
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
+
+
+# ---------------------------------------------------------------------------
+# Auth gate (hosted). Active only when WAR_ROOM_PASSWORD is set — locally the
+# boundary stays network-level (Tailscale), same as v1.
+# ---------------------------------------------------------------------------
+
+if WAR_ROOM_PASSWORD:
+    import base64 as _b64
+    import secrets as _secrets
+
+    @app.middleware("http")
+    async def _basic_auth(request: Request, call_next):
+        if request.url.path == "/health":
+            return await call_next(request)
+        header = request.headers.get("authorization", "")
+        ok = False
+        if header.startswith("Basic "):
+            try:
+                _user, _, pw = _b64.b64decode(header[6:]).decode().partition(":")
+                ok = _secrets.compare_digest(pw, WAR_ROOM_PASSWORD)
+            except Exception:
+                ok = False
+        if not ok:
+            from fastapi.responses import Response
+            return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="War Room"'})
+        return await call_next(request)
+
+
+def _local_only():
+    """Guard for routes that spawn local subprocesses / touch the vault."""
+    if RENDER_MODE:
+        raise HTTPException(403, "local-only feature — not available on the hosted deployment")
 
 
 # In-memory store of in-flight assistant streams keyed by message id.
@@ -257,33 +293,43 @@ async def dashboard(request: Request):
     establish the eventual shape of the cockpit. Each placeholder tile activates as
     real workflows demand it.
     """
-    # Compute live status for the Brain tile
-    thread_count = len(t.list_threads(limit=1000))
-    brain_status = (
-        f"{thread_count} thread{'s' if thread_count != 1 else ''}"
-        if thread_count > 0
-        else "Ready"
-    )
+    # V2 Overview: aggregation screen — portfolio KPIs + holdings + regime +
+    # movers + X-Agent brief + Brain stats. Loaders reused from the other screens.
+    p = portfolio.load_portfolio()
+    vix, vix_chg = await asyncio.to_thread(market.get_vix)
 
-    tiles_with_status = []
-    for tile in TILES:
-        tile_copy = dict(tile)
-        if tile["slug"] == "brain":
-            tile_copy["status"] = brain_status
-        elif tile["slug"] == "x-agent":
-            tile_copy["status"] = x_agent.tile_status()
-        elif tile["slug"] == "trading":
-            tile_copy["status"] = trading.tile_status()
-        tiles_with_status.append(tile_copy)
+    quotes = await asyncio.to_thread(_flat_quotes)
+    movers = sorted((q for q in quotes if q.change_pct is not None),
+                    key=lambda q: -abs(q.change_pct))[:6]
+
+    # today's brief headline: first markdown heading (or first non-empty line)
+    brief_md = x_agent.read_brief(x_agent.today_brief_date())
+    brief_headline = None
+    if brief_md:
+        for line in brief_md.splitlines():
+            line = line.strip()
+            if line:
+                brief_headline = line.lstrip("# ").strip()
+                break
+
+    # regime panel: freshest strategy chart (vix-spy-regime)
+    regime_chart = trading.latest_output("vix-spy-regime")
 
     return templates.TemplateResponse(
         request,
         "dashboard.html",
         {
             "screen": "overview",
-            "tiles": tiles_with_status,
-            "vault_path": str(VAULT_PATH),
+            "portfolio": p,
+            "vix": vix,
+            "vix_chg": vix_chg,
+            "movers": movers,
+            "brief_headline": brief_headline,
+            "brief_exists": brief_md is not None,
+            "regime_chart": regime_chart,
+            "thread_count": len(t.list_threads(limit=1000)),
             "indexed_notes": index_size(),
+            "model_name": __import__("config").MODEL,
         },
     )
 
@@ -350,6 +396,7 @@ async def x_agent_page(request: Request, view: str | None = None):
 
 @app.post("/x-agent/brief/generate", response_class=HTMLResponse)
 async def x_agent_generate_brief(request: Request):
+    _local_only()
     """Kick off a brief-generation subprocess. Returns the streaming-output placeholder.
 
     Semantics:
@@ -469,6 +516,7 @@ async def x_agent_stream_brief():
 
 @app.post("/x-agent/replies/generate", response_class=HTMLResponse)
 async def x_agent_run_reply_bot(request: Request, account: str = Form(...)):
+    _local_only()
     """Kick off a reply-scrape subprocess for the chosen account.
 
     Returns the SSE-streaming placeholder. Account picker on the page passes
@@ -605,6 +653,7 @@ async def trading_page(request: Request):
 
 @app.post("/trading/strategy/{slug}/run", response_class=HTMLResponse)
 async def trading_run_strategy(request: Request, slug: str):
+    _local_only()
     """Kick off a strategy subprocess. Returns the SSE-streaming placeholder.
 
     Form fields are passed straight through as user_args (resolved into --<name>
@@ -992,6 +1041,7 @@ def _parse_strategy_log(log: str) -> dict:
 
 @app.post("/api/strategy/{slug}/run")
 async def api_run_strategy(slug: str, request: Request):
+    _local_only()
     """JSON: synchronously run a strategy and return log + chart filename + parsed summary.
 
     Blocks until the subprocess finishes (bounded by TRADING_RUN_TIMEOUT_SECONDS).
@@ -1078,6 +1128,7 @@ async def list_threads_partial(request: Request):
 
 @app.post("/threads", response_class=HTMLResponse)
 async def create_thread(request: Request):
+    _local_only()
     """Create a new thread and redirect to its chat pane (under /brain)."""
     new_thread = t.create_thread(title="New chat")
     # HTMX: HX-Redirect tells the browser to do a full page-load redirect.
@@ -1105,6 +1156,7 @@ async def get_thread(request: Request, thread_id: str):
 
 @app.post("/threads/{thread_id}/messages", response_class=HTMLResponse)
 async def send_message(request: Request, thread_id: str, content: str = Form(...)):
+    _local_only()
     """Save the user message, create an assistant placeholder, return HTML for both.
 
     The assistant placeholder includes an SSE-connect attribute pointing at the
@@ -1225,6 +1277,7 @@ def _sse_payload(html_str: str) -> str:
 
 @app.post("/reindex", response_class=HTMLResponse)
 async def reindex(request: Request):
+    _local_only()
     """Drop + rebuild the vault FTS5 index. Returns a small HTML status block."""
     stats = await asyncio.to_thread(reindex_vault)
     return HTMLResponse(

@@ -1,29 +1,142 @@
 {% extends "base.html" %}
-{% block title %}War Room — Dashboard{% endblock %}
-{% block body_class %}dashboard-body{% endblock %}
+{% block title %}War Room — Overview{% endblock %}
 
 {% block content %}
-<header class="dashboard-header">
-    <h1>War Room</h1>
-    <p class="muted">Your personal-employee cockpit. Click into a tile to drill in.</p>
-</header>
+<div class="ov-grid fade-in">
 
-<main class="tile-grid">
-    {% for tile in tiles %}
-        <a href="{{ tile.href }}"
-           class="tile {% if not tile.enabled %}tile-disabled{% endif %}"
-           {% if not tile.enabled %}aria-disabled="true"{% endif %}>
-            <div class="tile-icon">{{ tile.icon }}</div>
-            <h2 class="tile-title">{{ tile.title }}</h2>
-            <p class="tile-description">{{ tile.description }}</p>
-            <div class="tile-status {{ tile.status_class }}">
-                {{ tile.status }}
+    {# ---- KPI strip ---- #}
+    <section class="panel span-12 kpi-strip">
+        <div class="kpi"><span class="kpi-label">Acct Value</span>
+            <span class="kpi-value">{% if portfolio and portfolio.total_value is not none %}${{ '%.0f'|format(portfolio.total_value) }}{% else %}—{% endif %}</span>
+            <span class="kpi-sub">{% if portfolio %}stocks ${{ '%.0f'|format(portfolio.total_mv) }}{% if portfolio.cash is not none %} · cash ${{ '%.0f'|format(portfolio.cash) }}{% endif %}{% else %}no snapshot{% endif %}</span></div>
+        <div class="kpi"><span class="kpi-label">Day P&L</span>
+            <span class="kpi-value {% if portfolio %}{{ 'up' if portfolio.day_pl >= 0 else 'down' }}{% endif %}">{% if portfolio %}{{ '%+.2f'|format(portfolio.day_pl) }}{% else %}—{% endif %}</span>
+            <span class="kpi-sub">vs prev close</span></div>
+        <div class="kpi"><span class="kpi-label">Open P&L</span>
+            <span class="kpi-value {% if portfolio %}{{ 'up' if portfolio.total_pl >= 0 else 'down' }}{% endif %}">{% if portfolio %}{{ '%+.2f'|format(portfolio.total_pl) }}{% else %}—{% endif %}</span>
+            <span class="kpi-sub">{% if portfolio %}unrealized · {{ portfolio.n_positions }} pos{% else %}no snapshot{% endif %}</span></div>
+        <div class="kpi"><span class="kpi-label">Positions</span>
+            <span class="kpi-value">{% if portfolio %}{{ portfolio.n_positions }}{% else %}—{% endif %}</span>
+            <span class="kpi-sub">snapshot · RH</span></div>
+        <div class="kpi"><span class="kpi-label">Buy Power</span>
+            <span class="kpi-value">{% if portfolio and portfolio.buying_power is not none %}${{ '%.0f'|format(portfolio.buying_power) }}{% else %}—{% endif %}</span>
+            <span class="kpi-sub">{% if portfolio and portfolio.deployed_pct is not none %}{{ '%.0f%%'|format(portfolio.deployed_pct) }} deployed{% endif %}</span></div>
+        <div class="kpi"><span class="kpi-label">VIX</span>
+            <span class="kpi-value {% if vix is not none and vix < 20 %}up{% elif vix is not none %}down{% endif %}">{% if vix is not none %}{{ '%.1f'|format(vix) }}{% else %}—{% endif %}</span>
+            <span class="kpi-sub">{% if vix_chg is not none %}{{ '%+.1f'|format(vix_chg) }} vs prior close{% endif %}</span></div>
+    </section>
+
+    {# ---- Holdings (7-col) ---- #}
+    <section class="panel span-7">
+        <div class="panel-head">
+            <span class="panel-title">Robinhood · Holdings</span>
+            {% if portfolio %}<span class="pill">SNAPSHOT {{ portfolio.as_of }}</span>{% else %}<span class="pill">NO SNAPSHOT</span>{% endif %}
+        </div>
+        {% if portfolio %}
+        <div class="subline">{{ portfolio.label }} · {{ portfolio.n_positions }} POSITIONS</div>
+        <div class="panel-body" style="padding-top:6px;">
+            <table class="dtable">
+                <thead><tr><th>Symbol</th><th>Qty</th><th>Avg</th><th>Last</th><th>Mkt Val</th><th>P/L</th><th>%</th></tr></thead>
+                <tbody>
+                {% for r in portfolio.rows %}
+                    <tr>
+                        <td><span class="sym-cell"><span class="sym-tick">{{ r.symbol }}</span>
+                            <span class="sym-sub">{{ r.sector or r.name }}</span></span></td>
+                        <td>{{ ('%g'|format(r.qty)) }}</td>
+                        <td>${{ '%.2f'|format(r.avg) }}</td>
+                        <td>${{ '%.2f'|format(r.last) }}</td>
+                        <td>${{ '%.2f'|format(r.mkt_val) }}</td>
+                        <td class="{{ 'up' if r.pl >= 0 else 'down' }}">{{ '%+.2f'|format(r.pl) }}</td>
+                        <td class="{{ 'up' if r.pl_pct >= 0 else 'down' }}">{{ '%+.1f%%'|format(r.pl_pct) }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="tfoot">
+            <span>MKT VALUE <b>${{ '%.2f'|format(portfolio.total_mv) }}</b></span>
+            <span class="{{ 'up' if portfolio.total_pl >= 0 else 'down' }}">UNREALIZED {{ '%+.2f'|format(portfolio.total_pl) }} · {{ '%+.1f%%'|format(portfolio.total_pl_pct) }}</span>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="es-title">No snapshot yet</div>
+            Ask Claude to refresh holdings — a session writes <code>data/holdings.json</code> from the Robinhood MCP.
+        </div>
+        {% endif %}
+    </section>
+
+    {# ---- Market regime ---- #}
+    <section class="panel span-5">
+        <div class="panel-head">
+            <span class="panel-title">Market Regime</span>
+            {% if vix is not none %}
+                {% if vix < 20 %}<span class="pill green">RISK-ON</span>{% else %}<span class="pill">ELEVATED</span>{% endif %}
+            {% endif %}
+        </div>
+        <div class="panel-body">
+            <div class="regime-vix {% if vix is not none and vix >= 20 %}down{% endif %}" style="font-size:30px;">
+                {% if vix is not none %}{{ '%.1f'|format(vix) }}{% else %}—{% endif %}</div>
+            <div class="strategy-meta" style="margin-top:2px;">VIX{% if vix_chg is not none %} · {{ '%+.1f'|format(vix_chg) }} D/D{% endif %} · 5-MIN CACHE</div>
+            {% if regime_chart %}
+                <div class="regime-chart" style="margin-top:8px;"><img src="/trading/output/{{ regime_chart }}" alt="VIX/SPY regime chart"></div>
+            {% else %}
+                <div class="empty-state" style="padding:12px;">No regime chart yet — run the strategy on the Trading screen.</div>
+            {% endif %}
+        </div>
+    </section>
+
+    {# ---- Top movers ---- #}
+    <section class="panel span-4">
+        <div class="panel-head"><span class="panel-title">Top Movers</span><span class="pill">FUTURES</span></div>
+        <div class="panel-body" style="padding-top:4px;">
+            {% for q in movers %}
+            <div class="acct-row">
+                <span class="k" style="text-transform:none;font-size:11px;color:var(--tx-strong);font-weight:700;">
+                    {% if q.is_active %}<span class="fc-star">★</span>{% endif %}{{ q.micro }}</span>
+                <span style="display:inline-flex;align-items:center;gap:8px;">
+                    <span class="fc-spark">{{ q.spark_svg|safe }}</span>
+                    <span class="v {{ q.direction }}">{{ q.change_pct_display }}</span>
+                </span>
             </div>
-        </a>
-    {% endfor %}
-</main>
+            {% else %}
+            <div class="empty-state">feed offline</div>
+            {% endfor %}
+        </div>
+    </section>
 
-<footer class="dashboard-footer muted">
-    Vault: <code>{{ vault_path }}</code> · {{ indexed_notes }} notes indexed
-</footer>
+    {# ---- X-Agent ---- #}
+    <section class="panel span-4">
+        <div class="panel-head"><span class="panel-title">X-Agent · Trending</span>
+            <span class="dot {% if brief_exists %}blink{% else %}dim{% endif %}"></span></div>
+        <div class="panel-body">
+            {% if brief_headline %}
+                <div style="font-family:var(--sans);font-size:13px;font-weight:600;color:var(--tx-strong);line-height:1.45;">{{ brief_headline }}</div>
+                <div class="strategy-meta" style="margin-top:8px;">BRIEF ✓ TODAY</div>
+            {% else %}
+                <div class="empty-state" style="padding:12px;">No brief yet today.</div>
+            {% endif %}
+            <a href="/x-agent" class="btn btn-sm" style="margin-top:8px;">Open X-Agent →</a>
+        </div>
+    </section>
+
+    {# ---- Brain ---- #}
+    <section class="panel span-4">
+        <div class="panel-head"><span class="panel-title">Brain · Vault</span></div>
+        <div class="panel-body">
+            <div class="acct-grid" style="margin-top:0;">
+                <div class="inset"><div class="inset-label">Threads</div><div class="inset-value">{{ thread_count }}</div></div>
+                <div class="inset"><div class="inset-label">Notes Idx</div><div class="inset-value">{{ indexed_notes }}</div></div>
+            </div>
+            <a href="/brain" class="btn btn-sm" style="margin-top:10px;">Ask the vault →</a>
+        </div>
+    </section>
+
+    {# ---- System strip ---- #}
+    <section class="panel span-12 sys-strip">
+        <span class="sys-chip"><span class="dot"></span>FEEDS <b>YAHOO 30S CACHE</b></span>
+        <span class="sys-chip"><span class="dot {% if render_mode %}amber{% endif %}"></span>MODE <b>{% if render_mode %}HOSTED{% else %}LOCAL{% endif %}</b></span>
+        <span class="sys-chip"><span class="dot"></span>VAULT <b>{{ indexed_notes }} NOTES</b></span>
+        <span class="sys-chip"><span class="dot"></span>MODEL <b>{{ model_name }}</b></span>
+    </section>
+</div>
 {% endblock %}

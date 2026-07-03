@@ -1,0 +1,24 @@
+# Render blueprint — War Room 2.0 hosted (trading-focused readonly surface).
+#
+# What works hosted: shell + tape + topstats (yfinance server-side), Trading
+# (futures map, strategy chart if present), Overview (VIX, movers). What
+# degrades honestly: portfolio panels (data/ is gitignored -> NO SNAPSHOT),
+# Brain + X-Agent (vault/Playwright live on the Mac -> LOCAL ONLY states).
+#
+# Required env vars (set in the Render dashboard):
+#   RENDER_MODE = 1            (skips vault/key requirements, disables local-only routes)
+#   WAR_ROOM_PASSWORD = <pick> (HTTP Basic auth gate — REQUIRED before exposing)
+services:
+  - type: web
+    name: war-room
+    runtime: python
+    plan: free            # free tier spins down when idle (~30-60s cold start); starter stays warm
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: RENDER_MODE
+        value: "1"
+      - key: WAR_ROOM_PASSWORD
+        sync: false       # set manually in the dashboard; never committed
+      - key: PYTHON_VERSION
+        value: "3.12.6"
