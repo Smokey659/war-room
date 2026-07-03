@@ -29,7 +29,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markdown_it import MarkdownIt
 
-from agents import futures, trading, x_agent
+from agents import futures, portfolio, trading, x_agent
 from config import HOST, PORT, VAULT_PATH
 from conversations import threads as t
 from conversations.db import init_db
@@ -280,6 +280,7 @@ async def dashboard(request: Request):
         request,
         "dashboard.html",
         {
+            "screen": "overview",
             "tiles": tiles_with_status,
             "vault_path": str(VAULT_PATH),
             "indexed_notes": index_size(),
@@ -304,6 +305,7 @@ async def brain(request: Request, thread: str | None = None):
         request,
         "brain.html",
         {
+            "screen": "brain",
             "thread": thread_obj,
             "rendered_messages": rendered_messages,
             "show_welcome": thread_obj is None,
@@ -333,6 +335,7 @@ async def x_agent_page(request: Request, view: str | None = None):
         request,
         "x_agent.html",
         {
+            "screen": "xagent",
             "today": today,
             "selected_date": selected_date,
             "is_today": selected_date == today,
@@ -585,10 +588,18 @@ async def trading_page(request: Request):
             "latest_age_seconds": age_seconds,
             "is_running": trading.is_strategy_running(s["slug"]),
         })
+    # V2 merged screen: futures map + portfolio share the page with strategies.
+    sectors = await asyncio.to_thread(futures.quotes_by_sector)
     return templates.TemplateResponse(
         request,
         "trading.html",
-        {"strategies": cards},
+        {
+            "screen": "trading",
+            "strategies": cards,
+            "sectors": sectors,
+            "cache_age": futures.cache_age_seconds(),
+            "portfolio": portfolio.load_portfolio(),
+        },
     )
 
 
@@ -734,6 +745,8 @@ async def trading_futures_page(request: Request):
         request,
         "futures_map.html",
         {
+            # legacy standalone map page — kept for deep links; rail highlights Trading
+            "screen": "trading",
             "sectors": sectors,
             "cache_age": futures.cache_age_seconds(),
         },
@@ -783,6 +796,68 @@ async def trading_output_image(filename: str):
 # Design rule: read-only by default. The one write-adjacent endpoint
 # (POST /api/strategy/{slug}/run) triggers a subprocess but doesn't change
 # persistent state beyond the chart cache the dashboard already maintains.
+
+
+# ---------------------------------------------------------------------------
+# V2 shell feed partials — top-bar stats + live tape (hydrated via HTMX every 45s;
+# both ride the 30s server-side futures cache, so refreshes are nearly free).
+# ---------------------------------------------------------------------------
+
+_TOPSTAT_SYMBOLS = ("MBT", "MET", "MGC")   # BTC / ETH / GOLD per the design
+_TOPSTAT_LABELS = {"MBT": "BTC", "MET": "ETH", "MGC": "GOLD"}
+
+
+def _flat_quotes():
+    out = []
+    for _sector, quotes in futures.quotes_by_sector():
+        out.extend(q for q in quotes if not getattr(q, "error", None))
+    return out
+
+
+@app.get("/partials/topstats", response_class=HTMLResponse)
+async def partial_topstats():
+    quotes = await asyncio.to_thread(_flat_quotes)
+    by_micro = {q.micro: q for q in quotes}
+    bits = []
+    for sym in _TOPSTAT_SYMBOLS:
+        q = by_micro.get(sym)
+        if not q:
+            continue
+        cls = "up" if q.direction == "up" else "down"
+        bits.append(
+            f'<div class="tstat"><span class="tstat-label"><span class="dot {cls if cls == "up" else "red"}"></span>'
+            f'{_TOPSTAT_LABELS[sym]}</span>'
+            f'<span class="tstat-value {cls}">{html.escape(q.price_display)}</span></div>'
+        )
+    return HTMLResponse("".join(bits) or '<div class="tstat"><span class="tstat-label">FEED</span>'
+                                         '<span class="tstat-value muted">—</span></div>')
+
+
+@app.get("/partials/tape", response_class=HTMLResponse)
+async def partial_tape():
+    quotes = await asyncio.to_thread(_flat_quotes)
+    items = []
+    for q in quotes:
+        cls = "up" if q.direction == "up" else "down"
+        items.append(
+            f'<span class="tape-item"><span class="tape-sym">{html.escape(q.micro)}</span>'
+            f'<span class="tape-px">{html.escape(q.price_display)}</span>'
+            f'<span class="{cls}">{html.escape(q.change_pct_display)}</span></span>'
+        )
+    if not items:
+        return HTMLResponse('<span class="tape-item muted">feed offline</span>')
+    run = "".join(items)
+    # duplicate the run 2x inside the animated row -> seamless -50% loop (design spec)
+    return HTMLResponse(f'<div class="tape-run">{run}{run}</div>')
+
+
+@app.get("/api/holdings")
+async def api_holdings():
+    """Portfolio snapshot (data/holdings.json, session-written). 404 until seeded."""
+    p = portfolio.load_portfolio()
+    if p is None:
+        raise HTTPException(404, "no holdings snapshot — write data/holdings.json from a Claude session")
+    return p
 
 
 @app.get("/api/futures")

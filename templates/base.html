@@ -8,7 +8,132 @@
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
 </head>
-<body class="{% block body_class %}{% endblock %}">
-    {% block content %}{% endblock %}
+<body class="shell {% block body_class %}{% endblock %}">
+
+    {# ---- GLOBAL: top status bar ---- #}
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-diamond"></div>
+            <div>
+                <div class="brand-name">WAR ROOM</div>
+                <div class="brand-sub">OPR · XN&nbsp;&nbsp;//&nbsp;&nbsp;v2.0</div>
+            </div>
+        </div>
+        <div class="cmdwrap">
+            <span class="cmd-prompt">▸</span>
+            <input id="cmd" class="cmd-input" type="text" placeholder="command&nbsp;&nbsp;‹GO›"
+                   autocomplete="off" spellcheck="false">
+            <span class="cmd-hint">⌘K</span>
+        </div>
+        <div class="topstats" id="topstats"
+             hx-get="/partials/topstats" hx-trigger="load, every 45s" hx-swap="innerHTML">
+            <div class="tstat"><span class="tstat-label"><span class="dot dim"></span>FEED</span>
+                <span class="tstat-value muted">…</span></div>
+        </div>
+        <div class="clockwrap">
+            <div>
+                <div class="clock-time" id="clock-time">--:--:--</div>
+                <div class="clock-date" id="clock-date"></div>
+            </div>
+            <div class="sess">
+                <span class="sess-line"><span class="dot" id="sess-dot"></span><span id="sess-text">…</span></span>
+                <span class="sess-line"><span class="dot blink" id="feed-dot"></span><span id="feed-text">CONNECTING…</span></span>
+            </div>
+        </div>
+    </header>
+
+    {# ---- GLOBAL: left nav rail ---- #}
+    <nav class="rail" hx-boost="true">
+        <a class="rail-item {% if screen == 'overview' %}active{% endif %}" href="/">
+            <span class="rail-code">OV</span><span class="rail-label">OVERVIEW</span></a>
+        <a class="rail-item {% if screen == 'trading' %}active{% endif %}" href="/trading">
+            <span class="rail-code">TR</span><span class="rail-label">TRADING</span></a>
+        <a class="rail-item {% if screen == 'xagent' %}active{% endif %}" href="/x-agent">
+            <span class="rail-code">XA</span><span class="rail-label">X-AGENT</span></a>
+        <a class="rail-item {% if screen == 'brain' %}active{% endif %}" href="/brain">
+            <span class="rail-code">BR</span><span class="rail-label">BRAIN</span></a>
+        <div class="rail-foot">
+            <span class="rail-live"><span class="dot"></span>LIVE</span>
+            <span class="rail-cfg">⚙ CFG</span>
+        </div>
+    </nav>
+
+    {# ---- main ---- #}
+    <main class="main">
+        {% block content %}{% endblock %}
+    </main>
+
+    {# ---- GLOBAL: live tape ---- #}
+    <footer class="tape">
+        <div class="tape-label">LIVE TAPE</div>
+        <div class="tape-track" id="tape"
+             hx-get="/partials/tape" hx-trigger="load, every 45s" hx-swap="innerHTML">
+        </div>
+    </footer>
+
+    <script>
+    (function () {
+        // ---- clock (ET) ----
+        const timeEl = document.getElementById('clock-time');
+        const dateEl = document.getElementById('clock-date');
+        const sessDot = document.getElementById('sess-dot');
+        const sessText = document.getElementById('sess-text');
+        function tick() {
+            const now = new Date();
+            const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+            timeEl.textContent = et.toTimeString().slice(0, 8);
+            dateEl.textContent = et.toLocaleDateString('en-US',
+                { weekday: 'short', month: 'short', day: '2-digit' }).toUpperCase().replace(/,/g, ',');
+            // NYSE session (approx; holidays not modeled)
+            const day = et.getDay(), mins = et.getHours() * 60 + et.getMinutes();
+            let label = 'NYSE CLOSED', cls = 'dot dim';
+            if (day >= 1 && day <= 5) {
+                if (mins >= 570 && mins < 960)      { label = 'NYSE OPEN';   cls = 'dot'; }
+                else if (mins >= 240 && mins < 570) { label = 'PRE-MKT';     cls = 'dot amber'; }
+                else if (mins >= 960 && mins < 1200){ label = 'AFTER-HRS';   cls = 'dot amber'; }
+            }
+            sessText.textContent = label;
+            sessDot.className = cls;
+        }
+        tick(); setInterval(tick, 1000);
+
+        // ---- feed status: stamp when the tape/topstats last refreshed ----
+        document.body.addEventListener('htmx:afterSwap', function (e) {
+            if (e.target.id === 'tape' || e.target.id === 'topstats') {
+                const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+                document.getElementById('feed-text').textContent = 'FEED ' + et.toTimeString().slice(0, 8);
+                const fd = document.getElementById('feed-dot');
+                fd.className = 'dot';
+            }
+        });
+        document.body.addEventListener('htmx:sendError', function () {
+            document.getElementById('feed-text').textContent = 'FEED OFFLINE';
+            document.getElementById('feed-dot').className = 'dot red';
+        });
+
+        // ---- command bar ----
+        const cmd = document.getElementById('cmd');
+        const ROUTES = { OV: '/', OVERVIEW: '/', TR: '/trading', TRADING: '/trading',
+                         FU: '/trading', FUTURES: '/trading', XA: '/x-agent',
+                         'X-AGENT': '/x-agent', XAGENT: '/x-agent', BR: '/brain', BRAIN: '/brain' };
+        cmd.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                const code = cmd.value.trim().toUpperCase();
+                cmd.value = '';
+                if (ROUTES[code]) window.location.href = ROUTES[code];
+            }
+        });
+        document.addEventListener('keydown', function (e) {
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); cmd.focus(); }
+        });
+
+        // ---- futures refresh (delegated so it survives HTMX swaps) ----
+        document.addEventListener('click', function (e) {
+            if (e.target.matches('[data-action="refresh-futures"]')) {
+                htmx.trigger('body', 'refresh-grid');
+            }
+        });
+    })();
+    </script>
 </body>
 </html>

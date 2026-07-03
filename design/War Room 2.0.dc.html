@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;background:#070809}
+  *::-webkit-scrollbar{width:8px;height:8px}
+  *::-webkit-scrollbar-thumb{background:#272d38;border-radius:4px}
+  *::-webkit-scrollbar-thumb:hover{background:#343c49}
+  *::-webkit-scrollbar-track{background:transparent}
+  ::selection{background:rgba(255,174,0,.32);color:#fff}
+  input::placeholder{color:#474d57}
+  [data-motion="off"] *{animation:none !important}
+  @keyframes wr-blink{0%,100%{opacity:1}50%{opacity:.2}}
+  @keyframes wr-tape{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  @keyframes wr-spdraw{to{stroke-dashoffset:0}}
+  @keyframes wr-fade{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+  @keyframes wr-pulse{0%{box-shadow:0 0 0 0 rgba(43,209,126,.5)}70%{box-shadow:0 0 0 5px rgba(43,209,126,0)}100%{box-shadow:0 0 0 0 rgba(43,209,126,0)}}
+</style>
+</helmet>
+
+<div ref="{{ rootRef }}" data-motion="on" style="--accent:#ffae00;--accent-soft:rgba(255,174,0,0.12);--accent-line:rgba(255,174,0,0.5);--gap:10px;--pad:12px;height:100vh;width:100%;display:flex;flex-direction:column;overflow:hidden;background:#070809;color:#d7d4ca;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13px">
+
+  <!-- ====================== TOP STATUS BAR ====================== -->
+  <header style="display:flex;align-items:stretch;height:48px;flex:0 0 auto;border-bottom:1px solid #1b1f27;background:#0a0c10">
+    <div style="display:flex;align-items:center;gap:11px;padding:0 16px;border-right:1px solid #1b1f27;min-width:218px">
+      <div style="width:15px;height:15px;background:var(--accent,#ffae00);transform:rotate(45deg);box-shadow:0 0 12px var(--accent-line,rgba(255,174,0,.5))"></div>
+      <div style="line-height:1">
+        <div style="font-size:13px;font-weight:700;letter-spacing:2.5px;color:#f2efe6">WAR&nbsp;ROOM</div>
+        <div style="font-size:8.5px;letter-spacing:1.6px;color:#6f7783;margin-top:3px">OPR · XN&nbsp;&nbsp;//&nbsp;&nbsp;v2.0</div>
+      </div>
+    </div>
+
+    <div style="flex:1;display:flex;align-items:center;gap:9px;padding:0 16px;min-width:0">
+      <span style="color:var(--accent,#ffae00);font-size:13px;font-weight:700">▸</span>
+      <input onKeyDown="{{ onCommand }}" placeholder="command  ‹GO›" style="flex:1;min-width:0;background:transparent;border:none;outline:none;color:#d7d4ca;font-family:'IBM Plex Mono';font-size:12px;font-weight:500;letter-spacing:.5px"/>
+      <span style="font-size:9px;color:#474d57;letter-spacing:1.5px;border:1px solid #20252e;border-radius:3px;padding:2px 6px">⌘K</span>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:18px;padding:0 20px;border-left:1px solid #1b1f27">
+      <sc-for list="{{ topStats }}" as="s" hint-placeholder-count="4">
+        <div style="text-align:right;line-height:1.25">
+          <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="{{ s.dotStyle }}"></span><span style="font-size:8.5px;letter-spacing:1.4px;color:#6f7783">{{ s.label }}</span></div>
+          <div style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:{{ s.color }}">{{ s.value }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:14px;padding:0 18px;border-left:1px solid #1b1f27">
+      <div style="text-align:right;line-height:1.15">
+        <div ref="{{ clockRef }}" style="font-size:15px;font-weight:600;color:#f2efe6;letter-spacing:1.5px;font-variant-numeric:tabular-nums">--:--:--</div>
+        <div ref="{{ dateRef }}" style="font-size:8.5px;color:#6f7783;letter-spacing:1.4px">— — —</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-start;gap:5px">
+        <div style="display:flex;align-items:center;gap:5px"><span style="{{ session.dotStyle }}"></span><span style="font-size:9px;letter-spacing:1px;color:{{ session.color }}">{{ session.text }}</span></div>
+        <div style="display:flex;align-items:center;gap:5px"><span style="{{ sync.dotStyle }}"></span><span style="font-size:9px;letter-spacing:1px;color:{{ sync.color }}">{{ sync.text }}</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ====================== BODY: NAV RAIL + MAIN ====================== -->
+  <div style="flex:1;display:flex;min-height:0">
+
+    <!-- NAV RAIL -->
+    <nav style="width:74px;flex:0 0 auto;background:#0a0c10;border-right:1px solid #1b1f27;display:flex;flex-direction:column;padding:8px 0">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="4">
+        <button onClick="{{ n.go }}" style="{{ n.btnStyle }}">
+          <span style="{{ n.chipStyle }}">{{ n.code }}</span>
+          <span style="{{ n.labelStyle }}">{{ n.label }}</span>
+        </button>
+      </sc-for>
+      <div style="flex:1"></div>
+      <div style="padding:10px 6px;border-top:1px solid #1b1f27;display:flex;flex-direction:column;gap:7px;align-items:center">
+        <div style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#2bd17e;animation:wr-pulse 2.4s infinite"></span><span style="font-size:8px;color:#6f7783;letter-spacing:.5px">LIVE</span></div>
+        <span style="font-size:8px;color:#474d57;letter-spacing:.5px">⚙ CFG</span>
+      </div>
+    </nav>
+
+    <!-- MAIN -->
+    <main style="flex:1;min-width:0;overflow-y:auto;padding:var(--pad,12px);background:radial-gradient(1100px 460px at 78% -12%, rgba(255,174,0,0.045), transparent 60%), #070809">
+
+      <!-- ======================================================= OVERVIEW -->
+      <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:var(--gap,10px)">
+
+        <!-- KPI STRIP -->
+        <section style="grid-column:span 12;background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;display:grid;grid-template-columns:repeat(6,1fr)">
+          <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="6">
+            <div style="padding:13px 15px;border-right:1px solid #1b1f27;display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:9px;letter-spacing:1.4px;color:#6f7783">{{ k.label }}</span>
+              <span data-countup="{{ k.cu }}" style="{{ k.valStyle }}">{{ k.value }}</span>
+              <span style="font-size:9px;color:#6f7783;letter-spacing:.4px">{{ k.sub }}</span>
+            </div>
+          </sc-for>
+        </section>
+
+        <!-- ROBINHOOD HOLDINGS -->
+        <section style="grid-column:span 7;background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:var(--pad,12px)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+            <span style="width:3px;height:13px;background:var(--accent,#ffae00)"></span>
+            <span style="font-size:10px;letter-spacing:1.8px;color:#9aa1ad;font-weight:600">ROBINHOOD · HOLDINGS</span>
+            <span style="flex:1"></span>
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#6f7783"></span><span style="font-size:9px;color:#6f7783;letter-spacing:.8px">SNAPSHOT {{ syncStr }}</span></span>
+          </div>
+          <div style="font-size:8.5px;color:#5b626d;letter-spacing:.5px;margin-bottom:11px">INDIVIDUAL ••••0871 · 14 POSITIONS · {{ quotesStr }}</div>
+          <div style="display:grid;grid-template-columns:1.5fr .7fr .9fr .9fr 1fr 1fr .7fr;gap:0 6px;font-size:9px;letter-spacing:1px;color:#5b626d;padding:0 0 7px 0;border-bottom:1px solid #1b1f27">
+            <span>SYMBOL</span><span style="text-align:right">QTY</span><span style="text-align:right">AVG</span><span style="text-align:right">LAST</span><span style="text-align:right">MKT VAL</span><span style="text-align:right">P/L</span><span style="text-align:right">%</span>
+          </div>
+          <sc-for list="{{ holdings }}" as="h" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:1.5fr .7fr .9fr .9fr 1fr 1fr .7fr;gap:0 6px;align-items:center;padding:7px 0;font-size:11px;border-bottom:1px solid #15181e">
+              <span style="display:flex;flex-direction:column;line-height:1.2"><span style="font-weight:600;color:#e8e5db;letter-spacing:.3px">{{ h.sym }}</span><span style="font-size:8px;color:#5b626d;letter-spacing:.2px">{{ h.sector }}</span></span>
+              <span style="text-align:right;color:#9aa1ad;font-variant-numeric:tabular-nums">{{ h.qtyStr }}</span>
+              <span style="text-align:right;color:#9aa1ad;font-variant-numeric:tabular-nums">{{ h.avgStr }}</span>
+              <span style="text-align:right;color:#e8e5db;font-variant-numeric:tabular-nums">{{ h.lastStr }}</span>
+              <span style="text-align:right;color:#bcc0c8;font-variant-numeric:tabular-nums">{{ h.mvStr }}</span>
+              <span style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:{{ h.plColor }}">{{ h.plStr }}</span>
+              <span style="text-align:right;font-variant-numeric:tabular-nums;color:{{ h.plColor }}">{{ h.plpStr }}</span>
+            </div>
+          </sc-for>
+          <div style="display:flex;justify-content:space-between;margin-top:11px;padding-top:9px;border-top:1px solid #1b1f27;font-size:10px;letter-spacing:.5px">
+            <span style="color:#6f7783">MKT VALUE <span style="color:#e8e5db;font-weight:600">{{ equityStr }}</span></span>
+            <span style="color:#6f7783">UNREALIZED <span style="font-weight:600;color:{{ unrealColor }}">{{ openPLStr2 }} · {{ openPLpStr }}</span></span>
+          </div>
+        </section>
+
+        <!-- REGIME -->
+        <section style="grid-column:span 5;background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:var(--pad,12px)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <span style="width:3px;height:13px;background:var(--accent,#ffae00)"></span>
+            <span style="font-size:10px;letter-spacing:1.8px;color:#9aa1ad;font-weight:600">MARKET REGIME</span>
+            <span style="flex:1"></span>
+            <span style="font-size:9px;letter-spacing:1px;color:#0a0c10;background:#2bd17e;font-weight:700;padding:3px 9px;border-radius:3px">RISK-ON</span>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:12px">
+            <div><div style="font-size:9px;color:#6f7783;letter-spacing:1px;margin-bottom:3px">VIX</div><div style="font-size:30px;font-weight:600;color:#2bd17e;line-height:1;font-variant-numeric:tabular-nums">13.8</div></div>
+            <div style="flex:1;padding-bottom:3px">
+              <div style="position:relative;height:6px;border-radius:3px;background:linear-gradient(90deg,#2bd17e,#ffae00 55%,#ff5247);margin-bottom:5px">
+                <div style="position:absolute;left:18%;top:-3px;width:2px;height:12px;background:#f2efe6;box-shadow:0 0 6px #fff"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:8px;color:#5b626d;letter-spacing:.5px"><span>CALM</span><span>NEUTRAL</span><span>STRESS</span></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;margin:6px 0 10px">
+            <svg width="290" height="56" style="display:block">
+              <polygon points="{{ spy.area }}" style="fill:rgba(43,209,126,0.10)"></polygon>
+              <polyline points="{{ spy.line }}" style="fill:none;stroke:#2bd17e;stroke-width:1.6px;stroke-linejoin:round;stroke-linecap:round"></polyline>
+            </svg>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;font-size:10px">
+            <div style="display:flex;justify-content:space-between"><span style="color:#6f7783">SPY vs 50-EMA</span><span style="color:#2bd17e;font-weight:600">ABOVE ▲ +1.8%</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:#6f7783">SPY vs 200-EMA</span><span style="color:#2bd17e;font-weight:600">ABOVE ▲ +6.4%</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:#6f7783">Breadth (A/D)</span><span style="color:#d7d4ca">2.3 : 1</span></div>
+          </div>
+        </section>
+
+        <!-- TOP MOVERS -->
+        <section style="grid-column:span 4;background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:var(--pad,12px)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px">
+            <span style="width:3px;height:13px;background:var(--accent,#ffae00)"></span>
+            <span style="font-size:10px;letter-spacing:1.8px;color:#9aa1ad;font-weight:600">TOP MOVERS</span>
+          </div>
+          <sc-for list="{{ movers }}" as="m" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #15181e">
+              <span style="display:flex;align-items:center;gap:6px"><span style="{{ m.starStyle }}">★</span><span style="font-weight:600;color:#e8e5db">{{ m.sym }}</span></span>
+              <svg width="60" height="18" style="display:block">
+                <polyline points="{{ m.line }}" style="fill:none;stroke:{{ m.stroke }};stroke-width:1.4px;stroke-linejoin:round;stroke-linecap:round"></polyline>
+              </svg>
+              <span style="text-align:right;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;color:{{ m.color }};min-width:54px">{{ m.arrow }}{{ m.chg }}</span>
+            </div>
+          </sc-for>
+        </section>
+
+        <!-- X-AGENT -->
+        <section style="grid-column:span 4;background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:var(--pad,12px)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px">
+            <span style="width:3px;height:13px;background:var(--accent,#ffae00)"></span>
+            <span style="font-size:10px;letter-spacing:1.8px;color:#9aa1ad;font-weight:600">X-AGENT · TRENDING</span>
+            <span style="flex:1"></span>
+            <span style="width:6px;height:6px;border-radius:50%;background:#2bd17e;animation:wr-blink 1.6s infinite"></span>
+          </div>
+          <div style="font-family:'IBM Plex Sans';font-size:13px;font-weight:600;color:#e8e5db;line-height:1.35;margin-bottom:12px">{{ briefHeadline }}</div>
+          <sc-for list="{{ trending }}" as="t" hint-placeholder-count="4">
+            <div style="margin-bottom:9px">
+              <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px"><span style="color:#bcc0c8">{{ t.t }}</span><span style="color:#6f7783;font-variant-numeric:tabular-nums">{{ t.m }}</span></div>
+              <div style="height:4px;background:#15181e;border-radius:2px;overflow:hidden"><div style="height:100%;width:{{ t.w }};background:var(--accent,#ffae00);border-radius:2px"></div></div>
+            </div>
+          </sc-for>
+          <div style="margin-top:12px;padding-top:9px;border-top:1px solid #1b1f27;display:flex;justify-content:space-between;font-size:9px;letter-spacing:.6px;color:#6f7783"><span>BRIEF ✓ TODAY</span><span style="color:var(--accent,#ffae00)">60 DRAFTS QUEUED</span></div>
+        </section>
+
+        <!-- BRAIN -->
+        <section style="grid-column:span 4;background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:var(--pad,12px)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px">
+            <span style="width:3px;height:13px;background:var(--accent,#ffae00)"></span>
+            <span style="font-size:10px;letter-spacing:1.8px;color:#9aa1ad;font-weight:600">BRAIN · VAULT</span>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:12px">
+            <div style="flex:1;background:#0a0c10;border:1px solid #1b1f27;border-radius:3px;padding:9px 11px"><div style="font-size:22px;font-weight:600;color:#e8e5db;font-variant-numeric:tabular-nums" data-countup="1">47</div><div style="font-size:8.5px;color:#6f7783;letter-spacing:1px;margin-top:2px">THREADS</div></div>
+            <div style="flex:1;background:#0a0c10;border:1px solid #1b1f27;border-radius:3px;padding:9px 11px"><div style="font-size:22px;font-weight:600;color:#e8e5db;font-variant-numeric:tabular-nums" data-countup="1">75</div><div style="font-size:8.5px;color:#6f7783;letter-spacing:1px;margin-top:2px">NOTES IDX</div></div>
+          </div>
+          <div style="font-size:9px;color:#6f7783;letter-spacing:.8px;margin-bottom:5px">LAST QUERY</div>
+          <div style="font-family:'IBM Plex Sans';font-size:12px;color:#bcc0c8;line-height:1.4;margin-bottom:11px">"what did I conclude about my trend-following backtests?"</div>
+          <div style="display:flex;align-items:center;gap:8px;background:#0a0c10;border:1px solid #1b1f27;border-radius:3px;padding:8px 10px"><span style="color:var(--accent,#ffae00)">›</span><span style="flex:1;font-size:11px;color:#474d57">ask the vault…</span><span style="font-size:9px;color:#5b626d;border:1px solid #20252e;border-radius:3px;padding:2px 6px">↵</span></div>
+        </section>
+
+        <!-- SYSTEM STRIP -->
+        <section style="grid-column:span 12;background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:11px var(--pad,12px);display:flex;align-items:center;gap:0;flex-wrap:wrap">
+          <span style="font-size:9px;letter-spacing:1.8px;color:#9aa1ad;font-weight:600;padding-right:16px;border-right:1px solid #1b1f27">SYSTEM</span>
+          <sc-for list="{{ system }}" as="s" hint-placeholder-count="6">
+            <span style="display:flex;align-items:center;gap:7px;padding:0 16px;border-right:1px solid #1b1f27;font-size:10px"><span style="width:6px;height:6px;border-radius:50%;background:{{ s.dot }}"></span><span style="color:#6f7783;letter-spacing:.5px">{{ s.label }}</span><span style="color:#d7d4ca;font-weight:500">{{ s.value }}</span></span>
+          </sc-for>
+        </section>
+
+      </div>
+      </sc-if>
+
+      <!-- ======================================================= TRADING -->
+      <sc-if value="{{ isTrading }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;gap:var(--gap,10px);align-items:flex-start">
+
+        <!-- FUTURES MAP -->
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--gap,10px)">
+
+          <!-- ROBINHOOD HOLDINGS -->
+          <section style="background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:var(--pad,12px)">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap">
+              <span style="width:3px;height:14px;background:var(--accent,#ffae00)"></span>
+              <span style="font-size:11px;letter-spacing:2px;color:#e8e5db;font-weight:600;white-space:nowrap">ROBINHOOD · HOLDINGS</span>
+              <span style="font-size:9px;color:#5b626d;letter-spacing:1px;white-space:nowrap">INDIVIDUAL ••••0871</span>
+              <span style="flex:1;min-width:20px"></span>
+              <span style="display:flex;align-items:center;gap:6px;background:#0a0c10;border:1px solid #1b1f27;border-radius:3px;padding:4px 9px"><span style="width:6px;height:6px;border-radius:50%;background:#6f7783"></span><span style="font-size:9px;color:#9aa1ad;letter-spacing:.6px">SNAPSHOT {{ syncStr }}</span></span>
+            </div>
+            <div style="font-size:9px;color:#5b626d;letter-spacing:.6px;margin-bottom:12px">{{ quotesStr }} · 14 POSITIONS · MANUAL REFRESH</div>
+            <div style="display:grid;grid-template-columns:1.5fr .7fr .85fr .85fr .8fr 1fr 1fr .65fr;gap:0 8px;font-size:9px;letter-spacing:1px;color:#5b626d;padding:0 4px 7px;border-bottom:1px solid #1b1f27">
+              <span>SYMBOL</span><span style="text-align:right">QTY</span><span style="text-align:right">AVG</span><span style="text-align:right">LAST</span><span style="text-align:right">DAY</span><span style="text-align:right">MKT VAL</span><span style="text-align:right">P/L</span><span style="text-align:right">%</span>
+            </div>
+            <sc-for list="{{ holdings }}" as="h" hint-placeholder-count="8">
+              <div style="display:grid;grid-template-columns:1.5fr .7fr .85fr .85fr .8fr 1fr 1fr .65fr;gap:0 8px;align-items:center;padding:8px 4px;font-size:11px;border-bottom:1px solid #15181e">
+                <span style="display:flex;flex-direction:column;line-height:1.2"><span style="font-weight:600;color:#e8e5db;letter-spacing:.3px">{{ h.sym }}</span><span style="font-size:8px;color:#5b626d;letter-spacing:.2px">{{ h.name }}</span></span>
+                <span style="text-align:right;color:#9aa1ad;font-variant-numeric:tabular-nums">{{ h.qtyStr }}</span>
+                <span style="text-align:right;color:#9aa1ad;font-variant-numeric:tabular-nums">{{ h.avgStr }}</span>
+                <span style="text-align:right;color:#e8e5db;font-variant-numeric:tabular-nums">{{ h.lastStr }}</span>
+                <span style="text-align:right;font-variant-numeric:tabular-nums;color:{{ h.dayColor }}">{{ h.dayStr }}</span>
+                <span style="text-align:right;color:#bcc0c8;font-variant-numeric:tabular-nums">{{ h.mvStr }}</span>
+                <span style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:{{ h.plColor }}">{{ h.plStr }}</span>
+                <span style="text-align:right;font-variant-numeric:tabular-nums;color:{{ h.plColor }}">{{ h.plpStr }}</span>
+              </div>
+            </sc-for>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:11px;padding-top:10px;border-top:1px solid #1b1f27;font-size:10px;letter-spacing:.5px">
+              <span style="color:#6f7783">COST <span style="color:#d7d4ca">{{ costStr }}</span> &nbsp;·&nbsp; MKT VALUE <span style="color:#e8e5db;font-weight:600">{{ equityStr }}</span></span>
+              <span style="color:#6f7783">UNREALIZED <span style="font-weight:700;color:{{ openPLColor }}">{{ openPLStr2 }} · {{ openPLpStr }}</span></span>
+            </div>
+          </section>
+
+          <div style="display:flex;align-items:center;gap:10px;background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:10px 14px">
+            <span style="width:3px;height:14px;background:var(--accent,#ffae00)"></span>
+            <span style="font-size:11px;letter-spacing:2px;color:#e8e5db;font-weight:600">FUTURES MAP</span>
+            <span style="font-size:9px;color:#5b626d;letter-spacing:1px">MARKET CONTEXT</span>
+            <span style="display:flex;align-items:center;gap:6px;font-size:9px;color:#6f7783;letter-spacing:.8px"><span style="{{ sync.dotStyle }}"></span>{{ feedLegend }}</span>
+            <span style="flex:1"></span>
+            <span style="font-size:9px;color:#6f7783;letter-spacing:.8px">SYNC {{ lastSync }}</span>
+            <button onClick="{{ refresh }}" style="background:var(--accent-soft,rgba(255,174,0,.12));border:1px solid var(--accent-line,rgba(255,174,0,.5));color:var(--accent,#ffae00);font-family:'IBM Plex Mono';font-size:10px;font-weight:600;letter-spacing:1px;padding:6px 12px;border-radius:3px;cursor:pointer">⟳ REFRESH</button>
+          </div>
+
+          <sc-for list="{{ sectors }}" as="sec" hint-placeholder-count="6">
+            <div>
+              <div style="display:flex;align-items:center;gap:9px;margin:2px 0 8px">
+                <span style="font-size:9px;letter-spacing:2px;color:#6f7783;font-weight:600">{{ sec.name }}</span>
+                <span style="flex:1;height:1px;background:#15181e"></span>
+                <span style="font-size:9px;color:#474d57">{{ sec.count }}</span>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:var(--gap,10px)">
+                <sc-for list="{{ sec.items }}" as="it" hint-placeholder-count="4">
+                  <article title="{{ it.srcTag }}" style="{{ it.cardStyle }}">
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                      <span style="{{ it.starStyle }}">★</span>
+                      <span style="font-weight:700;font-size:13px;color:#f2efe6;letter-spacing:.5px">{{ it.sym }}</span>
+                      <span style="{{ it.dotStyle }}"></span>
+                      <span style="flex:1"></span>
+                      <span style="font-size:8.5px;color:#5b626d;text-align:right;line-height:1.2;max-width:84px">{{ it.name }}</span>
+                    </div>
+                    <div style="font-size:19px;font-weight:600;color:#e8e5db;font-variant-numeric:tabular-nums;letter-spacing:.5px;margin-bottom:8px">{{ it.price }}</div>
+                    <div style="display:flex;align-items:flex-end;justify-content:space-between">
+                      <span style="font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:{{ it.color }}">{{ it.arrow }}{{ it.chg }}</span>
+                      <svg width="92" height="26" style="display:block">
+                        <polygon points="{{ it.area }}" style="fill:{{ it.fill }}"></polygon>
+                        <polyline points="{{ it.line }}" style="fill:none;stroke:{{ it.stroke }};stroke-width:1.5px;stroke-linejoin:round;stroke-linecap:round"></polyline>
+                      </svg>
+                    </div>
+                    <div style="{{ it.tagStyle }}">ACTIVE</div>
+                  </article>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- RIGHT RAIL -->
+        <aside style="width:332px;flex:0 0 auto;display:flex;flex-direction:column;gap:var(--gap,10px)">
+          <section style="background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:var(--pad,12px)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+              <span style="width:3px;height:13px;background:var(--accent,#ffae00)"></span>
+              <span style="font-size:10px;letter-spacing:1.8px;color:#9aa1ad;font-weight:600">ACCOUNT</span>
+              <span style="flex:1"></span>
+              <span style="font-size:9px;color:#5b626d;letter-spacing:1px">••••0871</span>
+            </div>
+            <div style="font-size:9px;color:#6f7783;letter-spacing:1.2px;margin-bottom:4px">PORTFOLIO VALUE</div>
+            <div style="font-size:27px;font-weight:600;color:#f2efe6;font-variant-numeric:tabular-nums;letter-spacing:.5px;line-height:1;margin-bottom:13px">{{ acctValueStr }}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:13px">
+              <div style="background:#0a0c10;border:1px solid #1b1f27;border-radius:3px;padding:8px 10px"><div style="font-size:8.5px;color:#6f7783;letter-spacing:1px;margin-bottom:3px">STOCKS</div><div style="font-size:13px;font-weight:600;color:#e8e5db;font-variant-numeric:tabular-nums">{{ equityStr }}</div></div>
+              <div style="background:#0a0c10;border:1px solid #1b1f27;border-radius:3px;padding:8px 10px"><div style="font-size:8.5px;color:#6f7783;letter-spacing:1px;margin-bottom:3px">CASH</div><div style="font-size:13px;font-weight:600;color:#e8e5db;font-variant-numeric:tabular-nums">{{ cashStr }}</div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:11px">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="color:#6f7783;letter-spacing:.5px">DAY P/L</span><span style="font-weight:600;font-variant-numeric:tabular-nums;color:{{ dayPLColor }}">{{ dayPLStr2 }} · {{ dayPLpStr }}</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="color:#6f7783;letter-spacing:.5px">OPEN P/L</span><span style="font-weight:600;font-variant-numeric:tabular-nums;color:{{ openPLColor }}">{{ openPLStr2 }} · {{ openPLpStr }}</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="color:#6f7783;letter-spacing:.5px">REALIZED · 90D</span><span style="font-weight:600;font-variant-numeric:tabular-nums;color:{{ realizedColor }}">{{ realizedStr }}</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="color:#6f7783;letter-spacing:.5px">BUYING POWER</span><span style="color:#d7d4ca;font-variant-numeric:tabular-nums">{{ bpStr }}</span></div>
+            </div>
+            <div style="margin-top:12px;padding-top:9px;border-top:1px solid #1b1f27;display:flex;align-items:center;gap:6px">
+              <span style="width:6px;height:6px;border-radius:50%;background:#6f7783"></span>
+              <span style="font-size:8.5px;color:#6f7783;letter-spacing:.6px">SNAPSHOT {{ syncStr }}</span>
+              <span style="flex:1"></span>
+              <span style="font-size:8.5px;color:#5b626d;letter-spacing:.5px">MANUAL SYNC</span>
+            </div>
+          </section>
+
+          <section style="background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:var(--pad,12px)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px"><span style="width:3px;height:13px;background:var(--accent,#ffae00)"></span><span style="font-size:10px;letter-spacing:1.8px;color:#9aa1ad;font-weight:600">REGIME</span><span style="flex:1"></span><span style="font-size:9px;letter-spacing:1px;color:#0a0c10;background:#2bd17e;font-weight:700;padding:3px 9px;border-radius:3px">RISK-ON</span></div>
+            <div style="display:flex;align-items:flex-end;gap:12px;margin-bottom:10px">
+              <div><div style="font-size:9px;color:#6f7783;margin-bottom:2px">VIX</div><div style="font-size:26px;font-weight:600;color:#2bd17e;line-height:1;font-variant-numeric:tabular-nums">13.8</div></div>
+              <div style="flex:1"><svg width="180" height="44" style="display:block"><polygon points="{{ spy.area2 }}" style="fill:rgba(43,209,126,0.10)"></polygon><polyline points="{{ spy.line2 }}" style="fill:none;stroke:#2bd17e;stroke-width:1.5px;stroke-linejoin:round;stroke-linecap:round"></polyline></svg></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px;font-size:10px">
+              <div style="display:flex;justify-content:space-between"><span style="color:#6f7783">SPY · 50-EMA</span><span style="color:#2bd17e;font-weight:600">ABOVE ▲</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:#6f7783">SPY · 200-EMA</span><span style="color:#2bd17e;font-weight:600">ABOVE ▲</span></div>
+            </div>
+          </section>
+
+          <section style="background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:var(--pad,12px)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px"><span style="width:3px;height:13px;background:var(--accent,#ffae00)"></span><span style="font-size:10px;letter-spacing:1.8px;color:#9aa1ad;font-weight:600">STRATEGY</span></div>
+            <div style="font-family:'IBM Plex Sans';font-size:13px;font-weight:600;color:#e8e5db;margin-bottom:3px">VIX / SPY EMA Regime</div>
+            <div style="font-size:10px;color:#6f7783;line-height:1.45;margin-bottom:12px;font-family:'IBM Plex Sans'">Long-bias gate: VIX &lt; 18 and SPY above its 50/200-EMA. Currently confirming risk-on.</div>
+            <div style="display:flex;gap:8px">
+              <button style="flex:1;background:var(--accent,#ffae00);color:#0a0c10;border:none;font-family:'IBM Plex Mono';font-size:10px;font-weight:700;letter-spacing:1px;padding:9px;border-radius:3px;cursor:pointer">▸ RUN</button>
+              <button style="background:#0a0c10;border:1px solid #1b1f27;color:#9aa1ad;font-family:'IBM Plex Mono';font-size:10px;font-weight:600;letter-spacing:1px;padding:9px 12px;border-radius:3px;cursor:pointer">CHART</button>
+            </div>
+            <div style="font-size:9px;color:#5b626d;margin-top:9px;letter-spacing:.5px">LAST RUN · 14m ago · exit code 0</div>
+          </section>
+        </aside>
+      </div>
+      </sc-if>
+
+      <!-- ======================================================= X-AGENT -->
+      <sc-if value="{{ isXagent }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;gap:var(--gap,10px);align-items:flex-start">
+
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--gap,10px)">
+          <section style="background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:18px var(--pad,12px) var(--pad,12px)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+              <span style="width:3px;height:13px;background:var(--accent,#ffae00)"></span>
+              <span style="font-size:10px;letter-spacing:1.8px;color:#9aa1ad;font-weight:600">TODAY'S BRIEF</span>
+              <span style="flex:1"></span>
+              <span style="font-size:9px;color:#6f7783;letter-spacing:.6px">27 JUN · 312k tok · $0.94</span>
+              <button style="background:#0a0c10;border:1px solid #1b1f27;color:#9aa1ad;font-family:'IBM Plex Mono';font-size:9px;font-weight:600;letter-spacing:1px;padding:5px 10px;border-radius:3px;cursor:pointer">↻ REGEN</button>
+            </div>
+            <div style="font-family:'IBM Plex Sans';font-size:21px;font-weight:600;color:#f2efe6;line-height:1.3;margin-bottom:6px">{{ briefHeadline }}</div>
+            <div style="font-family:'IBM Plex Sans';font-size:13px;color:#9aa1ad;line-height:1.6;margin-bottom:18px">The niche is consolidating around tooling, not models. Three threads carried 60%+ of impressions in your tracked accounts today; reply-fit is highest on the eval-harness conversation.</div>
+
+            <div style="font-size:9px;letter-spacing:1.6px;color:#6f7783;font-weight:600;margin-bottom:10px">MOMENTUM</div>
+            <sc-for list="{{ trending }}" as="t" hint-placeholder-count="5">
+              <div style="display:grid;grid-template-columns:170px 1fr auto;align-items:center;gap:12px;margin-bottom:9px">
+                <span style="font-size:12px;color:#d7d4ca;font-family:'IBM Plex Sans'">{{ t.t }}</span>
+                <div style="height:5px;background:#15181e;border-radius:3px;overflow:hidden"><div style="height:100%;width:{{ t.w }};background:var(--accent,#ffae00);border-radius:3px"></div></div>
+                <span style="font-size:10px;color:#6f7783;font-variant-numeric:tabular-nums;min-width:42px;text-align:right">{{ t.m }}</span>
+              </div>
+            </sc-for>
+
+            <div style="margin-top:18px;padding-top:14px;border-top:1px solid #1b1f27;font-family:'IBM Plex Sans';font-size:13px;color:#bcc0c8;line-height:1.65">
+              <p style="margin:0 0 10px"><span style="color:var(--accent,#ffae00);font-weight:600">▸ Angle of the day.</span> "Context engineering" has fully displaced "prompt engineering" as the framing. Posts that show a concrete before/after context window are outperforming hot-takes 4:1.</p>
+              <p style="margin:0"><span style="color:var(--accent,#ffae00);font-weight:600">▸ Reply target.</span> The eval-harness thread (6.1k engagements) is under-replied by builders. A short, specific result beats a generic "great thread."</p>
+            </div>
+          </section>
+        </div>
+
+        <aside style="width:340px;flex:0 0 auto;display:flex;flex-direction:column;gap:var(--gap,10px)">
+          <section style="background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:var(--pad,12px)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="width:3px;height:13px;background:var(--accent,#ffae00)"></span><span style="font-size:10px;letter-spacing:1.8px;color:#9aa1ad;font-weight:600">REPLY BOT</span></div>
+            <div style="font-size:9px;letter-spacing:1px;color:#6f7783;margin-bottom:8px">ACCOUNT</div>
+            <sc-for list="{{ accounts }}" as="a" hint-placeholder-count="2">
+              <button onClick="{{ a.pick }}" style="{{ a.cardStyle }}">
+                <div style="display:flex;align-items:center;gap:8px"><span style="{{ a.dotStyle }}"></span><span style="font-weight:600;color:#e8e5db;font-size:13px">{{ a.name }}</span></div>
+                <div style="font-size:10px;color:#6f7783;margin-top:4px;padding-left:18px;font-family:'IBM Plex Sans'">{{ a.desc }}</div>
+              </button>
+            </sc-for>
+            <button onClick="{{ runBot }}" style="{{ botBtnStyle }}">{{ botBtnLabel }}</button>
+            <sc-if value="{{ botRun }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:11px;background:#070809;border:1px solid #1b1f27;border-radius:3px;padding:10px 11px;max-height:168px;overflow-y:auto">
+                <sc-for list="{{ botLog }}" as="l" hint-placeholder-count="0">
+                  <div style="font-size:10.5px;color:#9aa1ad;line-height:1.7;letter-spacing:.3px">{{ l }}</div>
+                </sc-for>
+                <div style="{{ botCursorStyle }}">▌</div>
+              </div>
+            </sc-if>
+            <div style="font-size:9px;color:#5b626d;margin-top:9px;letter-spacing:.5px">FYP SCRAPE · 60 DRAFTS · PER-ACCOUNT PROMPT</div>
+          </section>
+
+          <section style="background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:var(--pad,12px)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px"><span style="width:3px;height:13px;background:var(--accent,#ffae00)"></span><span style="font-size:10px;letter-spacing:1.8px;color:#9aa1ad;font-weight:600">PAST BRIEFS</span></div>
+            <sc-for list="{{ pastBriefs }}" as="b" hint-placeholder-count="5">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #15181e;cursor:pointer">
+                <span style="font-size:11px;color:#bcc0c8;font-variant-numeric:tabular-nums">{{ b.date }}</span>
+                <span style="font-size:9px;color:#5b626d">{{ b.size }} KB</span>
+              </div>
+            </sc-for>
+          </section>
+        </aside>
+      </div>
+      </sc-if>
+
+      <!-- ======================================================= BRAIN -->
+      <sc-if value="{{ isBrain }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;gap:var(--gap,10px);align-items:stretch;height:100%">
+        <aside style="width:230px;flex:0 0 auto;background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;padding:var(--pad,12px);display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="width:3px;height:13px;background:var(--accent,#ffae00)"></span><span style="font-size:10px;letter-spacing:1.8px;color:#9aa1ad;font-weight:600">THREADS</span></div>
+          <button style="width:100%;background:var(--accent,#ffae00);color:#0a0c10;border:none;font-family:'IBM Plex Mono';font-size:10px;font-weight:700;letter-spacing:1px;padding:8px;border-radius:3px;cursor:pointer;margin-bottom:11px">+ NEW CHAT</button>
+          <sc-for list="{{ threads }}" as="t" hint-placeholder-count="5">
+            <div style="{{ t.style }}">{{ t.title }}</div>
+          </sc-for>
+        </aside>
+
+        <section style="flex:1;min-width:0;background:#0d0f13;border:1px solid #1b1f27;border-radius:4px;display:flex;flex-direction:column;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid #1b1f27;font-size:11px;color:#9aa1ad;letter-spacing:.6px;font-family:'IBM Plex Sans'">Trend-following backtests — conclusions</div>
+          <div style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px">
+            <div style="align-self:flex-end;max-width:74%;background:#13161b;border:1px solid #20252e;border-radius:8px 8px 2px 8px;padding:11px 14px;font-family:'IBM Plex Sans';font-size:13px;color:#e8e5db;line-height:1.5">what did I conclude about my trend-following backtests?</div>
+            <div style="align-self:flex-start;max-width:80%;background:#0a0c10;border:1px solid #1b1f27;border-radius:8px 8px 8px 2px;padding:12px 15px">
+              <div style="font-size:9px;letter-spacing:1.4px;color:var(--accent,#ffae00);font-weight:600;margin-bottom:7px">ASSISTANT</div>
+              <div style="font-family:'IBM Plex Sans';font-size:13px;color:#cdd1d8;line-height:1.6">Your notes land on three conclusions: (1) the edge is almost entirely in the <span style="color:var(--accent,#ffae00)">[[trend-filter]]</span> regime gate, not entry timing; (2) sizing off realized vol beat fixed-fractional in every window; (3) costs killed the higher-frequency variants. See <span style="color:var(--accent,#ffae00)">[[backtest-2026-Q1]]</span>.</div>
+              <div style="display:flex;gap:6px;margin-top:11px;padding-top:9px;border-top:1px dashed #1b1f27">
+                <span style="font-size:9px;color:#6f7783;background:#13161b;border:1px solid #20252e;border-radius:3px;padding:3px 8px">trend-filter.md</span>
+                <span style="font-size:9px;color:#6f7783;background:#13161b;border:1px solid #20252e;border-radius:3px;padding:3px 8px">backtest-2026-Q1.md</span>
+                <span style="font-size:9px;color:#6f7783;background:#13161b;border:1px solid #20252e;border-radius:3px;padding:3px 8px">vol-sizing.md</span>
+              </div>
+            </div>
+          </div>
+          <div style="padding:12px 16px;border-top:1px solid #1b1f27;display:flex;gap:10px;align-items:center">
+            <div style="flex:1;display:flex;align-items:center;gap:8px;background:#0a0c10;border:1px solid #1b1f27;border-radius:4px;padding:9px 12px"><span style="color:var(--accent,#ffae00)">›</span><span style="flex:1;font-size:12px;color:#474d57;font-family:'IBM Plex Sans'">ask the vault…</span></div>
+            <button style="background:var(--accent,#ffae00);color:#0a0c10;border:none;font-family:'IBM Plex Mono';font-size:11px;font-weight:700;letter-spacing:1px;padding:10px 16px;border-radius:4px;cursor:pointer">SEND</button>
+          </div>
+        </section>
+      </div>
+      </sc-if>
+
+    </main>
+  </div>
+
+  <!-- ====================== LIVE TAPE ====================== -->
+  <footer style="height:30px;flex:0 0 auto;border-top:1px solid #1b1f27;background:#0a0c10;display:flex;align-items:stretch;overflow:hidden">
+    <div style="flex:0 0 auto;display:flex;align-items:center;padding:0 13px;background:var(--accent,#ffae00);color:#0a0c10;font-size:9.5px;font-weight:700;letter-spacing:2px">LIVE TAPE</div>
+    <div style="flex:1;overflow:hidden;display:flex;align-items:center;position:relative">
+      <div style="display:inline-flex;white-space:nowrap;animation:wr-tape 42s linear infinite;will-change:transform">
+        <sc-for list="{{ tape }}" as="t" hint-placeholder-count="10">
+          <span style="display:inline-flex;align-items:center;gap:7px;padding:0 15px;border-right:1px solid #15181e;font-size:11px"><span style="color:#9aa1ad;font-weight:600">{{ t.sym }}</span><span style="color:#d7d4ca;font-variant-numeric:tabular-nums">{{ t.price }}</span><span style="color:{{ t.color }};font-variant-numeric:tabular-nums">{{ t.arrow }}{{ t.chg }}</span></span>
+        </sc-for>
+        <sc-for list="{{ tape }}" as="t" hint-placeholder-count="10">
+          <span style="display:inline-flex;align-items:center;gap:7px;padding:0 15px;border-right:1px solid #15181e;font-size:11px"><span style="color:#9aa1ad;font-weight:600">{{ t.sym }}</span><span style="color:#d7d4ca;font-variant-numeric:tabular-nums">{{ t.price }}</span><span style="color:{{ t.color }};font-variant-numeric:tabular-nums">{{ t.arrow }}{{ t.chg }}</span></span>
+        </sc-for>
+      </div>
+    </div>
+  </footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#ffae00&quot;,&quot;options&quot;:[&quot;#36c2ff&quot;,&quot;#2bd17e&quot;,&quot;#ff7a3c&quot;,&quot;#ffae00&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dense&quot;,&quot;options&quot;:[&quot;dense&quot;,&quot;comfortable&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;motion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Motion&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.rootRef = React.createRef();
+    this.clockRef = React.createRef();
+    this.dateRef = React.createRef();
+    this.state = { screen:'overview', account:'main', botRun:false, botLog:[], botDone:false, lastSync:'—', tick:0, live:{}, liveStatus:'loading' };
+    this._timers = [];
+  }
+  componentDidMount(){
+    this.applyTheme();
+    const tick = () => {
+      const d = new Date();
+      if(this.clockRef.current) this.clockRef.current.textContent = this.f2(d.getHours())+':'+this.f2(d.getMinutes())+':'+this.f2(d.getSeconds());
+      if(this.dateRef.current) this.dateRef.current.textContent = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'2-digit'}).toUpperCase();
+    };
+    tick();
+    if(this.props.motion !== false) this._clock = setInterval(tick, 1000);
+    this.loadLive();
+    this._poll = setInterval(()=>this.loadLive(), 45000);
+    setTimeout(()=>this.runCountup(), 70);
+  }
+  componentDidUpdate(){ this.applyTheme(); }
+  componentWillUnmount(){ if(this._clock) clearInterval(this._clock); if(this._poll) clearInterval(this._poll); this._timers.forEach(clearTimeout); }
+
+  f2(n){ return String(n).padStart(2,'0'); }
+  tstr(d){ return this.f2(d.getHours())+':'+this.f2(d.getMinutes())+':'+this.f2(d.getSeconds()); }
+  hexA(hex,a){ let h=(hex||'#ffae00').replace('#',''); if(h.length===3) h=h.split('').map(c=>c+c).join(''); const n=parseInt(h,16); return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')'; }
+
+  applyTheme(){
+    const r = this.rootRef.current; if(!r) return;
+    const a = this.props.accent || '#ffae00';
+    r.style.setProperty('--accent', a);
+    r.style.setProperty('--accent-soft', this.hexA(a,0.12));
+    r.style.setProperty('--accent-line', this.hexA(a,0.5));
+    const comf = (this.props.density || 'dense') === 'comfortable';
+    r.style.setProperty('--gap', comf ? '15px' : '10px');
+    r.style.setProperty('--pad', comf ? '17px' : '12px');
+    r.dataset.motion = this.props.motion === false ? 'off' : 'on';
+  }
+
+  runCountup(){
+    const r = this.rootRef.current; if(!r || this.props.motion === false) return;
+    r.querySelectorAll('[data-countup]').forEach(el => {
+      if(el.getAttribute('data-countup') !== '1') return;
+      const raw = el.textContent.trim();
+      const m = raw.match(/^([^0-9\-]*)(-?[0-9,]*\.?[0-9]+)(.*)$/);
+      if(!m) return;
+      const pre = m[1], numStr = m[2], suf = m[3];
+      const comma = numStr.indexOf(',') >= 0;
+      const dec = (numStr.split('.')[1] || '').length;
+      const target = parseFloat(numStr.replace(/,/g,''));
+      const dur = 850, t0 = performance.now();
+      const fmt = (v) => { let s = v.toFixed(dec); if(comma){ const p = s.split('.'); p[0] = Number(p[0]).toLocaleString('en-US'); s = p.join('.'); } return pre + s + suf; };
+      const step = (now) => { const t = Math.min(1,(now-t0)/dur); const e = 1-Math.pow(1-t,3); el.textContent = fmt(target*e); if(t<1) requestAnimationFrame(step); else el.textContent = raw; };
+      requestAnimationFrame(step);
+    });
+  }
+
+  seriesFor(seed, dir){ let s = (seed*9301+49297)%233280; const rnd = () => { s = (s*9301+49297)%233280; return s/233280; }; const n = 16, arr = []; let v = 50; for(let i=0;i<n;i++){ v += (rnd()-0.5)*7 + (dir==='up'?0.85:-0.85); arr.push(v); } return arr; }
+  spark(vals, w, h, pad){ const mn = Math.min(...vals), mx = Math.max(...vals), rg = (mx-mn)||1, n = vals.length, st = (w-pad*2)/(n-1); const pts = vals.map((v,i)=>[pad+i*st,(h-pad)-((v-mn)/rg)*(h-pad*2)]); const line = pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' '); const area = line+' '+(w-pad).toFixed(1)+','+(h-pad).toFixed(1)+' '+pad.toFixed(1)+','+(h-pad).toFixed(1); return {line, area}; }
+
+  downsample(arr,n){ if(!arr||arr.length<=n) return (arr||[]).slice(); const out=[]; const st=(arr.length-1)/(n-1); for(let i=0;i<n;i++) out.push(arr[Math.round(i*st)]); return out; }
+  fmtPrice(p){ if(p==null||isNaN(p)) return '—'; const a=Math.abs(p); const dec=a>=1000?0:a>=100?1:a>=10?2:3; return Number(p).toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec}); }
+  fmtPct(c){ if(c==null||isNaN(c)) return '0.00%'; return Math.abs(c).toFixed(2)+'%'; }
+  loadHist(){ try{ return JSON.parse(localStorage.getItem('wr2_hist')||'{}'); }catch(e){ return {}; } }
+  saveHist(){ try{ localStorage.setItem('wr2_hist', JSON.stringify(this._hist||{})); }catch(e){} }
+  pushHist(sym,price){ if(!this._hist) this._hist=this.loadHist(); const now=Date.now(); let h=this._hist[sym]||[]; if(!h.length||now-h[h.length-1].t>20000) h=[...h,{t:now,p:price}]; h=h.filter(x=>now-x.t<12*3600*1000).slice(-48); if(h.length===1) h=[{t:now-1,p:price},...h]; this._hist[sym]=h; this.saveHist(); return h; }
+  async loadLive(){
+    const live={...this.state.live}; let ok=0;
+    try{
+      const c=new AbortController(); const t=setTimeout(()=>c.abort(),8000);
+      const r=await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,pax-gold&sparkline=true&price_change_percentage=24h',{signal:c.signal});
+      clearTimeout(t);
+      if(r.ok){ const arr=await r.json(); const map={bitcoin:'MBT',ethereum:'MET','pax-gold':'MGC'};
+        arr.forEach(co=>{ const sym=map[co.id]; if(!sym) return; const series=this.downsample((co.sparkline_in_7d&&co.sparkline_in_7d.price)||[],18); const chg=co.price_change_percentage_24h; live[sym]={ price:co.current_price, chg, dir:chg>=0?'up':'down', series:series.length>1?series:[co.current_price,co.current_price], src:'CoinGecko · 7d' }; ok++; }); }
+    }catch(e){}
+    const metals=[['XAU','MGC'],['XAG','SIL'],['HG','MHG']];
+    for(const m of metals){ const api=m[0], sym=m[1];
+      try{ const c=new AbortController(); const t=setTimeout(()=>c.abort(),7000);
+        const r=await fetch('https://api.gold-api.com/price/'+api,{signal:c.signal}); clearTimeout(t);
+        if(r.ok){ const j=await r.json(); const price=j.price; if(price==null) continue; const h=this.pushHist(sym,price);
+          if(sym==='MGC'&&live.MGC){ live.MGC={...live.MGC, price, src:'gold-api spot · CG 7d'}; }
+          else { const f=h[0].p; const chg=f?((price-f)/f*100):0; live[sym]={ price, chg, dir:chg>=0?'up':'down', series:h.map(x=>x.p), src:'gold-api spot' }; }
+          ok++; }
+      }catch(e){}
+    }
+    if(ok>0) this.setState({ live, liveStatus:'ok', lastSync:this.tstr(new Date()) });
+    else this.setState({ liveStatus:'err' });
+  }
+
+  runBot(){
+    if(this.state.botRun) return;
+    this.setState({ botRun:true, botLog:[], botDone:false });
+    const acct = this.state.account === 'main' ? '@xn_builds' : '@nostrand_md';
+    const steps = [
+      '▸ launching playwright chromium…',
+      '● authenticated session '+acct,
+      '▸ opening For You feed',
+      '● scrolled 60 viewports · 142 posts',
+      '▸ ranking posts by reply-fit',
+      '● drafting with sonnet-4-6…',
+      '✓ 60 drafts generated · review queue ready'
+    ];
+    let i = 0;
+    const push = () => {
+      if(i >= steps.length){ this.setState({ botDone:true }); return; }
+      this.setState(s => ({ botLog: [...s.botLog, steps[i]] }));
+      i++;
+      const t = setTimeout(push, 460 + Math.random()*440);
+      this._timers.push(t);
+    };
+    const t0 = setTimeout(push, 280);
+    this._timers.push(t0);
+  }
+
+  refresh(){ this.loadLive(); }
+
+  rhSnapshot(){
+    // Real Robinhood snapshot — INDIVIDUAL ••••0871. Manual refresh: re-pull to update.
+    // [sym, name, sector, qty, avgCost, lastPrice, prevClose]
+    return {
+      account:'INDIVIDUAL ••••0871',
+      acctValue:2263.07, cash:1244.19, buyingPower:1239.46, crypto:18.27,
+      realized90d:-3.45, realizedTrades:2,
+      sync:'28 JUN · 18:19 ET', quotesAsOf:'FRI 26 JUN CLOSE',
+      holdings:[
+        ['TSLA','Tesla','Autos',0.021588,463.22,379.19,375.12],
+        ['HOOD','Robinhood','Brokers',0.008369,119.49,98.70,93.47],
+        ['SPY','SPDR S&P 500','Index ETF',0.001780,556.18,729.09,734.30],
+        ['AMZN','Amazon','Internet Retail',0.022601,246.89,230.48,227.01],
+        ['AMSC','Am. Superconductor','Grid / Wind',1,21.05,39.74,40.28],
+        ['LASE','Laser Photonics','Lasers',1,9.51,1.72,1.76],
+        ['ONDS','Ondas','Drones / Wireless',1,2.64,7.765,7.675],
+        ['TMC','TMC the metals co','Sea Minerals',1,6.57,4.255,4.44],
+        ['OUST','Ouster','Lidar',7,43.86,42.02,41.82],
+        ['NGEN','NervGen Pharma','Biotech',80,1.94,1.87,1.91],
+        ['PL','Planet Labs','Satellites',6,28.31,27.07,26.51],
+        ['UMAC','Unusual Machines','Drones',4,25.92,19.23,18.81],
+        ['DASH','DoorDash','Delivery',1,172.30,182.76,176.91],
+        ['RVI','RVI Fund','Closed-End',2,41.71,33.00,32.55]
+      ]
+    };
+  }
+  buildHoldings(){
+    const UP='#2bd17e', DN='#ff5247';
+    const snap = this.rhSnapshot();
+    const px = v => '$'+Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    let totCost=0, totMV=0, totDay=0;
+    const rows = snap.holdings.map(h => {
+      const sym=h[0], name=h[1], sector=h[2], qty=h[3], avg=h[4], last=h[5], prev=h[6];
+      const cost=qty*avg, mv=qty*last, pl=mv-cost, plp=cost?pl/cost*100:0;
+      const day=qty*(last-prev), dayp=prev?(last-prev)/prev*100:0;
+      totCost+=cost; totMV+=mv; totDay+=day;
+      const up=pl>=0, dup=day>=0;
+      return { sym, name, sector,
+        qtyStr: qty<1 ? qty.toFixed(4) : String(qty),
+        avgStr: px(avg), lastStr: px(last), mvStr: px(mv),
+        plStr:(up?'+$':'-$')+Math.abs(pl).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}),
+        plpStr:(up?'+':'-')+Math.abs(plp).toFixed(1)+'%',
+        dayStr:(dayp>=0?'+':'')+dayp.toFixed(2)+'%',
+        plColor: up?UP:DN, dayColor: dup?UP:DN, plp };
+    });
+    rows.sort((a,b)=>b.plp-a.plp);
+    const openPL=totMV-totCost, openPLp=totCost?openPL/totCost*100:0;
+    const dayPLp=(totMV-totDay)?totDay/(totMV-totDay)*100:0;
+    return { snap, rows, totCost, totMV, openPL, openPLp, totDay, dayPLp,
+      equityStr:'$'+totMV.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) };
+  }
+
+  renderVals(){
+    const UP = '#2bd17e', DN = '#ff5247';
+    const col = d => d==='up' ? UP : DN;
+    const fill = d => d==='up' ? 'rgba(43,209,126,0.10)' : 'rgba(255,82,71,0.10)';
+    const scr = this.state.screen;
+    const L = this.state.live;
+    const liveDot = (b) => ({ width:'6px',height:'6px',borderRadius:'50%',background:b?UP:'transparent',border:b?'none':'1px solid #3a4150',boxShadow:b?'0 0 5px '+UP:'none',flex:'0 0 auto' });
+
+    // ---- NAV ----
+    const screens = [['overview','OV','OVERVIEW'],['trading','TR','TRADING'],['xagent','XA','X-AGENT'],['brain','BR','BRAIN']];
+    const navItems = screens.map(([id,code,label]) => {
+      const on = scr === id;
+      return { id, code, label, go: () => this.setState({ screen:id }),
+        btnStyle:{ display:'flex',flexDirection:'column',alignItems:'center',gap:'5px',padding:'11px 4px',background:on?'var(--accent-soft,rgba(255,174,0,.12))':'transparent',border:'none',borderLeft:on?'2px solid var(--accent,#ffae00)':'2px solid transparent',cursor:'pointer' },
+        chipStyle:{ width:'30px',height:'24px',display:'flex',alignItems:'center',justifyContent:'center',border:on?'1px solid var(--accent,#ffae00)':'1px solid #272d38',borderRadius:'3px',fontSize:'11px',fontWeight:'700',letterSpacing:'.5px',color:on?'var(--accent,#ffae00)':'#8a92a0' },
+        labelStyle:{ fontSize:'8px',letterSpacing:'1px',color:on?'var(--accent,#ffae00)':'#5b626d' } };
+    });
+
+    // ---- ROBINHOOD HOLDINGS (real snapshot · manual refresh) ----
+    const kpiV = { fontSize:'23px',fontWeight:'600',fontVariantNumeric:'tabular-nums',letterSpacing:'.5px',lineHeight:'1' };
+    const H = this.buildHoldings();
+    const holdings = H.rows;
+    const positions = holdings; // back-compat alias
+    const openPL = H.openPL, dayPL = H.totDay;
+    const openPLColor = openPL>=0?UP:DN, dayPLColor = dayPL>=0?UP:DN;
+    const money2 = v => (v>=0?'+$':'-$')+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const plain2 = v => '$'+Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const dropCents = s => s.replace(/\.\d+$/,'');
+    const openPLStr2 = money2(openPL), openPLpStr = (openPL>=0?'+':'-')+Math.abs(H.openPLp).toFixed(1)+'%';
+    const dayPLStr2 = money2(dayPL), dayPLpStr = (dayPL>=0?'+':'-')+Math.abs(H.dayPLp).toFixed(2)+'%';
+    const realized90d = H.snap.realized90d, realizedColor = realized90d>=0?UP:DN;
+    const realizedStr = money2(realized90d)+' · '+H.snap.realizedTrades+' tr';
+    const equityStr = H.equityStr, costStr = plain2(H.totCost);
+    const acctValueStr = plain2(H.snap.acctValue), cashStr = plain2(H.snap.cash);
+    const cryptoStr = plain2(H.snap.crypto), bpStr = plain2(H.snap.buyingPower);
+    const syncStr = H.snap.sync, quotesStr = 'QUOTES @ '+H.snap.quotesAsOf;
+    const unrealColor = openPLColor, unrealStr2 = openPLStr2;
+    const unrealShort = (openPL>=0?'+$':'-$')+Math.abs(Math.round(openPL)).toLocaleString('en-US');
+    const notionalStr = equityStr;
+    const deployed = Math.round(H.totMV / H.snap.acctValue * 100);
+
+    // ---- KPIs (real account figures) ----
+    const kpis = [
+      { label:'ACCT VALUE', value:dropCents(acctValueStr), sub:'stocks '+dropCents(equityStr)+' · cash '+dropCents(cashStr), cu:'0', valStyle:{...kpiV,color:'#e8e5db'} },
+      { label:'DAY P&L', value:dayPLStr2, sub:'since Fri close', cu:'0', valStyle:{...kpiV,color:dayPLColor} },
+      { label:'OPEN P&L', value:openPLStr2, sub:'unrealized · 14 pos', cu:'0', valStyle:{...kpiV,color:openPLColor} },
+      { label:'POSITIONS', value:'14', sub:'live quotes · RH', cu:'1', valStyle:{...kpiV,color:'#e8e5db'} },
+      { label:'BUY POWER', value:dropCents(bpStr), sub:deployed+'% deployed', cu:'1', valStyle:{...kpiV,color:'#e8e5db'} },
+      { label:'VIX', value:'13.8', sub:'−0.6 ▼ · model', cu:'1', valStyle:{...kpiV,color:UP} }
+    ];
+
+    // ---- FUTURES SECTORS ----
+    let seed = 1;
+    const mk = (sym,name,price,chg,dir,active) => {
+      const lv = L[sym]; const sd = seed++; let series, isLive=false, srcTag='SIM · indicative', flat=false;
+      if(lv){ price=this.fmtPrice(lv.price); dir=lv.dir; series=(lv.series&&lv.series.length>1)?lv.series:this.seriesFor(sd,dir); isLive=true; srcTag='LIVE · '+lv.src; flat=(lv.chg==null)||Math.abs(lv.chg)<0.005; chg=flat?'SPOT':this.fmtPct(lv.chg); }
+      else { series=this.seriesFor(sd,dir); }
+      const sp = this.spark(series,92,26,3);
+      const arrow0 = flat?'':(dir==='up'?'▲':'▼'); const cc0 = flat?'#9aa1ad':col(dir);
+      return { sym,name,price,chg,dir,active:!!active,isLive,srcTag,arrow:arrow0,color:cc0,stroke:col(dir),fill:fill(dir),line:sp.line,area:sp.area,dotStyle:liveDot(isLive),
+        cardStyle:{ position:'relative',background:active?'rgba(255,174,0,0.05)':'#0d0f13',border:active?'1px solid var(--accent-line,rgba(255,174,0,.5))':'1px solid #1b1f27',borderRadius:'4px',padding:'12px 13px',overflow:'hidden',boxShadow:active?'0 0 18px rgba(255,174,0,0.07)':'none' },
+        starStyle:{ color:active?'var(--accent,#ffae00)':'transparent',fontSize:'11px',width:active?'auto':'0',marginRight:active?'0':'-6px' },
+        tagStyle:{ display:active?'block':'none',position:'absolute',top:'9px',right:'-1px',background:'var(--accent,#ffae00)',color:'#0a0c10',fontSize:'7.5px',fontWeight:'700',letterSpacing:'1px',padding:'2px 7px 2px 8px',borderRadius:'2px 0 0 2px' } };
+    };
+    const sectors = [
+      { name:'EQUITY INDEX', items:[ mk('MES','E-mini S&P 500','6,412.50','0.42%','up'), mk('MNQ','E-mini Nasdaq-100','23,184.2','0.61%','up'), mk('MYM','E-mini Dow','44,820','0.18%','up'), mk('M2K','E-mini Russell 2K','2,338.4','0.22%','down') ] },
+      { name:'CRYPTO', items:[ mk('MBT','Micro Bitcoin','71,240','2.10%','up'), mk('MET','Micro Ether','3,894','1.42%','up') ] },
+      { name:'METALS', items:[ mk('MGC','Micro Gold','3,418.4','0.71%','up'), mk('SIL','Micro Silver','38.21','1.21%','up'), mk('MHG','Micro Copper','4.918','1.83%','up',true) ] },
+      { name:'ENERGY', items:[ mk('MCL','Micro Crude WTI','68.40','0.91%','down'), mk('MNG','Micro Nat Gas','3.624','1.42%','down') ] },
+      { name:'FX', items:[ mk('M6E','Micro EUR/USD','1.0921','0.12%','up'), mk('M6B','Micro GBP/USD','1.2840','0.08%','down') ] },
+      { name:'RATES', items:[ mk('10Y','Micro 10-Yr Yield','4.284','0.62%','up'), mk('30Y','Micro 30-Yr Yield','4.512','0.41%','up') ] }
+    ].map(s => ({ ...s, count: s.items.length + ' INSTR' }));
+
+    // ---- MOVERS ----
+    let mseed = 40;
+    const mvr = (sym,chg,dir,active) => { const lv=L[sym]; const sd=mseed++; let series,isLive=false,flat=false;
+      if(lv){ dir=lv.dir; series=(lv.series&&lv.series.length>1)?lv.series:this.seriesFor(sd,dir); isLive=true; flat=(lv.chg==null)||Math.abs(lv.chg)<0.005; chg=flat?'SPOT':this.fmtPct(lv.chg); } else series=this.seriesFor(sd,dir);
+      const sp=this.spark(series,60,18,2);
+      const aw=flat?'':(dir==='up'?'▲':'▼'); const cc=flat?'#9aa1ad':col(dir);
+      return { sym,chg,dir,active:!!active,isLive,arrow:aw,color:cc,stroke:col(dir),line:sp.line, dotStyle:liveDot(isLive), starStyle:{ color:active?'var(--accent,#ffae00)':'transparent',fontSize:'10px' } }; };
+    const movers = [ mvr('MBT','2.10%','up'), mvr('MHG','1.83%','up',true), mvr('MET','1.42%','up'), mvr('MNG','1.42%','down'), mvr('MCL','0.91%','down'), mvr('M2K','0.22%','down') ];
+
+    // ---- SPY regime chart ----
+    const spySeries = this.seriesFor(7,'up');
+    const s1 = this.spark(spySeries,290,56,4), s2 = this.spark(spySeries,180,44,3);
+    const spy = { line:s1.line, area:s1.area, line2:s2.line, area2:s2.area };
+
+    // ---- TAPE ----
+    const flat = []; sectors.forEach(s => s.items.forEach(it => flat.push({ sym:it.sym, price:it.price, chg:it.chg, color:it.color, arrow:it.arrow })));
+    const tape = flat;
+
+    // ---- X-AGENT ----
+    const trending = [
+      { t:'context-engineering', w:'94%', m:'9.4k' },
+      { t:'agent eval harnesses', w:'78%', m:'6.1k' },
+      { t:'MCP servers', w:'64%', m:'4.7k' },
+      { t:'local LLM rigs', w:'47%', m:'2.9k' },
+      { t:'prompt caching', w:'39%', m:'2.1k' }
+    ];
+    const briefHeadline = 'Context-engineering and agent-eval tooling own the timeline';
+    const rawAcc = [ ['main','@xn_builds','Primary — builder / finance voice'], ['alt','@nostrand_md','Markets & macro takes'] ];
+    const accounts = rawAcc.map(([key,name,desc]) => { const sel = this.state.account === key; return { key,name,desc,pick:()=>this.setState({account:key}),
+      cardStyle:{ display:'block',width:'100%',textAlign:'left',marginBottom:'8px',background:sel?'var(--accent-soft,rgba(255,174,0,.12))':'#0a0c10',border:sel?'1px solid var(--accent-line,rgba(255,174,0,.5))':'1px solid #1b1f27',borderRadius:'3px',padding:'11px 12px',cursor:'pointer' },
+      dotStyle:{ width:'10px',height:'10px',borderRadius:'50%',border:sel?'3px solid var(--accent,#ffae00)':'2px solid #474d57',boxSizing:'border-box' } }; });
+    const botBusy = this.state.botRun && !this.state.botDone;
+    const botBtnStyle = { width:'100%',marginTop:'4px',background:botBusy?'#0a0c10':'var(--accent,#ffae00)',color:botBusy?'#9aa1ad':'#0a0c10',border:botBusy?'1px solid #1b1f27':'none',fontFamily:"'IBM Plex Mono'",fontSize:'11px',fontWeight:'700',letterSpacing:'1px',padding:'11px',borderRadius:'3px',cursor:botBusy?'default':'pointer' };
+    const botBtnLabel = botBusy ? 'RUNNING…' : (this.state.botDone ? '✓ 60 DRAFTS — RUN AGAIN' : '▸ RUN REPLY BOT');
+    const botCursorStyle = { display:botBusy?'block':'none',color:'var(--accent,#ffae00)',fontSize:'11px',animation:'wr-blink 1s steps(1) infinite' };
+    const pastBriefs = [ {date:'2026-06-27',size:'14.2'},{date:'2026-06-26',size:'12.8'},{date:'2026-06-25',size:'13.6'},{date:'2026-06-24',size:'11.9'},{date:'2026-06-23',size:'15.1'} ];
+
+    // ---- MARKET SESSION + FEED STATUS ----
+    const etNow = new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
+    const dy = etNow.getDay(), mn2 = etNow.getHours()*60+etNow.getMinutes(); let session;
+    if(dy===0||dy===6) session={text:'NYSE CLOSED',color:'#6f7783'};
+    else if(mn2>=570&&mn2<960) session={text:'NYSE OPEN',color:UP};
+    else if(mn2>=240&&mn2<570) session={text:'NYSE PRE-MKT',color:'#ffae00'};
+    else if(mn2>=960&&mn2<1200) session={text:'NYSE AFTER',color:'#ffae00'};
+    else session={text:'NYSE CLOSED',color:'#6f7783'};
+    session.dotStyle={ width:'7px',height:'7px',borderRadius:'50%',background:session.color,animation:'wr-blink 1.6s infinite' };
+    const ls = this.state.liveStatus;
+    const sync = ls==='ok'?{text:'FEED '+this.state.lastSync,color:UP}:ls==='err'?{text:'FEED OFFLINE',color:DN}:{text:'CONNECTING…',color:'#ffae00'};
+    sync.dotStyle={ width:'7px',height:'7px',borderRadius:'50%',background:sync.color };
+    const liveCount = Object.keys(L).length;
+    const feedLegend = ls==='ok'?(liveCount+' LIVE · CRYPTO+METALS'):ls==='err'?'OFFLINE — LAST/SIM':'CONNECTING…';
+    const topStats = [
+      { label:'DAY P&L', value:dayPLStr2, color:dayPLColor, isLive:false },
+      { label:'BTC', value:L.MBT?('$'+this.fmtPrice(L.MBT.price)):'$71,240', color:L.MBT?col(L.MBT.dir):UP, isLive:!!L.MBT },
+      { label:'ETH', value:L.MET?('$'+this.fmtPrice(L.MET.price)):'$3,894', color:L.MET?col(L.MET.dir):UP, isLive:!!L.MET },
+      { label:'GOLD', value:L.MGC?('$'+this.fmtPrice(L.MGC.price)):'$3,418', color:L.MGC?col(L.MGC.dir):UP, isLive:!!L.MGC }
+    ].map(s=>({ ...s, dotStyle:liveDot(s.isLive) }));
+
+    // ---- SYSTEM ----
+    const system = [
+      { label:'FEEDS', value:feedLegend, dot:(ls==='ok'?UP:ls==='err'?DN:'#ffae00') },
+      { label:'API', value:'OK', dot:UP },{ label:'TAILSCALE', value:'UP', dot:UP },
+      { label:'VAULT', value:'75 NOTES', dot:UP },{ label:'MODEL', value:'sonnet-4-6', dot:'var(--accent,#ffae00)' },
+      { label:'COST', value:'$2.14 today', dot:'#6f7783' }
+    ];
+
+    // ---- BRAIN threads ----
+    const rawTh = ['Trend-following backtests','SAP Q3 pipeline review','Vol-sizing vs fixed fractional','Copper macro thesis','Reply-bot prompt tuning'];
+    const threads = rawTh.map((title,i) => ({ title, style:{ padding:'9px 10px',fontSize:'12px',color:i===0?'var(--accent,#ffae00)':'#bcc0c8',borderLeft:i===0?'2px solid var(--accent,#ffae00)':'2px solid transparent',background:i===0?'var(--accent-soft,rgba(255,174,0,.12))':'transparent',borderRadius:'2px',marginBottom:'2px',cursor:'pointer',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontFamily:"'IBM Plex Sans'" } }));
+
+    return {
+      rootRef:this.rootRef, clockRef:this.clockRef, dateRef:this.dateRef,
+      isOverview: scr==='overview', isTrading: scr==='trading', isXagent: scr==='xagent', isBrain: scr==='brain',
+      navItems, kpis, positions, sectors, movers, spy, tape, trending, briefHeadline, accounts, pastBriefs, system, threads,
+      topStats, session, sync, feedLegend, unrealColor, unrealStr2, unrealShort, notionalStr,
+      holdings, acctValueStr, equityStr, cashStr, cryptoStr, bpStr, costStr, syncStr, quotesStr,
+      openPLColor, openPLStr2, openPLpStr, dayPLColor, dayPLStr2, dayPLpStr, realizedColor, realizedStr,
+      botRun:this.state.botRun, botLog:this.state.botLog, botBtnStyle, botBtnLabel, botCursorStyle,
+      lastSync:this.state.lastSync,
+      onCommand:(e)=>{ if(e.key==='Enter'){ const v=(e.target.value||'').trim().toUpperCase(); const map={OV:'overview',OVERVIEW:'overview',TR:'trading',TRADING:'trading',FU:'trading',FUTURES:'trading',XA:'xagent','X-AGENT':'xagent',BR:'brain',BRAIN:'brain'}; if(map[v]) this.setState({screen:map[v]}); e.target.value=''; } },
+      refresh:()=>this.refresh(), runBot:()=>this.runBot()
+    };
+  }
+}
+</script>
+</body>
+</html>

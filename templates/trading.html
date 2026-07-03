@@ -1,91 +1,171 @@
 {% extends "base.html" %}
 {% block title %}Trading — War Room{% endblock %}
-{% block body_class %}trading-body{% endblock %}
 
 {% block content %}
-<div class="agent-page">
-    <header class="agent-page-header">
-        <a href="/" class="back-link">← Dashboard</a>
-        <h1>📈 Trading</h1>
-        <p class="muted">Visual regime widgets. Click Run to refresh; chart renders inline.</p>
-    </header>
+<div class="trading-layout fade-in">
 
-    <div class="trading-strategies">
-        <section class="strategy-card trading-entrypoint">
-            <div class="strategy-header">
-                <h2>📊 Futures Map</h2>
-                <p class="strategy-description muted">
-                    Live quotes for all Robinhood-supported futures, grouped by sector. 5-day sparkline on each card. Active positions highlighted.
-                </p>
+    {# ================= MAIN COLUMN ================= #}
+    <div class="trading-main">
+
+        {# ---- Robinhood holdings (8-col variant) ---- #}
+        <section class="panel">
+            <div class="panel-head">
+                <span class="panel-title">Robinhood · Holdings</span>
+                {% if portfolio %}
+                    <span class="pill">SNAPSHOT {{ portfolio.as_of }}</span>
+                {% else %}
+                    <span class="pill">NO SNAPSHOT</span>
+                {% endif %}
             </div>
-            <a href="/trading/futures" class="btn-primary">Open Map →</a>
+            {% if portfolio %}
+            <div class="subline">{{ portfolio.label }} · {{ portfolio.n_positions }} POSITIONS · MANUAL REFRESH</div>
+            <div class="panel-body" style="padding-top:6px;">
+                <table class="dtable">
+                    <thead><tr>
+                        <th>Symbol</th><th>Qty</th><th>Avg</th><th>Last</th>
+                        <th>Day</th><th>Mkt Val</th><th>P/L</th><th>%</th>
+                    </tr></thead>
+                    <tbody>
+                    {% for r in portfolio.rows %}
+                        <tr>
+                            <td><span class="sym-cell"><span class="sym-tick">{{ r.symbol }}</span>
+                                <span class="sym-sub">{{ r.sector or r.name }}</span></span></td>
+                            <td>{{ ('%g'|format(r.qty)) }}</td>
+                            <td>${{ '%.2f'|format(r.avg) }}</td>
+                            <td>${{ '%.2f'|format(r.last) }}</td>
+                            <td class="{{ 'up' if r.day_pct >= 0 else 'down' }}">{{ '%+.1f%%'|format(r.day_pct) }}</td>
+                            <td>${{ '%.2f'|format(r.mkt_val) }}</td>
+                            <td class="{{ 'up' if r.pl >= 0 else 'down' }}">{{ '%+.2f'|format(r.pl) }}</td>
+                            <td class="{{ 'up' if r.pl_pct >= 0 else 'down' }}">{{ '%+.1f%%'|format(r.pl_pct) }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="tfoot">
+                <span>COST ${{ '%.2f'|format(portfolio.total_cost) }} · MKT VALUE <b>${{ '%.2f'|format(portfolio.total_mv) }}</b></span>
+                <span class="{{ 'up' if portfolio.total_pl >= 0 else 'down' }}">
+                    UNREALIZED {{ '%+.2f'|format(portfolio.total_pl) }} · {{ '%+.1f%%'|format(portfolio.total_pl_pct) }}</span>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="es-title">No snapshot yet</div>
+                Ask Claude to refresh holdings — a session writes <code>data/holdings.json</code> from the Robinhood MCP.
+            </div>
+            {% endif %}
         </section>
 
-        {% for s in strategies %}
-        <section class="strategy-card">
-            <div class="strategy-header">
-                <h2>{{ s.icon }} {{ s.display_name }}</h2>
-                <p class="strategy-description muted">{{ s.description }}</p>
+        {# ---- Futures map ---- #}
+        <section class="panel">
+            <div class="fmap-bar">
+                <span class="panel-title">Futures Map · Market Context</span>
+                <span class="fmap-meta">
+                    {% if cache_age == 0 %}JUST FETCHED{% elif cache_age < 60 %}SYNC {{ cache_age }}S AGO{% else %}SYNC {{ (cache_age // 60) }}M AGO{% endif %}
+                    · YAHOO ~15M DELAY
+                </span>
+                <button type="button" data-action="refresh-futures" class="btn btn-amber btn-sm">⟳ Refresh</button>
             </div>
+            <div id="futures-grid-wrap"
+                 hx-get="/trading/futures/grid?refresh=1"
+                 hx-trigger="refresh-grid from:body"
+                 hx-swap="innerHTML">
+                {% include "partials/futures_grid.html" %}
+            </div>
+        </section>
+    </div>
 
-            <form hx-post="/trading/strategy/{{ s.slug }}/run"
-                  hx-target="#strategy-output-{{ s.slug }}"
-                  hx-swap="innerHTML"
-                  class="strategy-form">
-                {% if s.args %}
-                <div class="strategy-args">
-                    {% for arg in s.args %}
-                    <label class="strategy-arg">
-                        <span class="arg-label">{{ arg.label }}</span>
-                        <input type="{{ arg.type }}"
-                               name="{{ arg.name }}"
-                               value="{{ arg.default }}"
-                               placeholder="{{ arg.placeholder|default('') }}"
-                               class="arg-input"/>
-                        {% if arg.help %}<span class="arg-help muted">{{ arg.help }}</span>{% endif %}
-                    </label>
-                    {% endfor %}
-                </div>
-                {% endif %}
+    {# ================= RIGHT RAIL ================= #}
+    <aside class="trading-rail">
 
-                <button type="submit" class="btn-primary" {% if s.is_running %}disabled{% endif %}>
-                    {% if s.is_running %}
-                        Running…
-                    {% elif s.latest_output %}
-                        Re-run
-                    {% else %}
-                        Run
+        {# ---- Account ---- #}
+        <section class="panel">
+            <div class="panel-head">
+                <span class="panel-title">Account</span>
+                {% if portfolio %}<span class="pill">{{ portfolio.label }}</span>{% endif %}
+            </div>
+            <div class="panel-body">
+                {% if portfolio %}
+                    {% if portfolio.total_value is not none %}
+                        <div class="acct-value">${{ '%.2f'|format(portfolio.total_value) }}</div>
                     {% endif %}
-                </button>
-            </form>
-
-            <div id="strategy-output-{{ s.slug }}" class="strategy-output-container">
-                {% if s.is_running %}
-                    <div class="strategy-output">
-                        <div class="muted">A run is in progress. Refresh to see the result.</div>
+                    <div class="acct-grid">
+                        <div class="inset"><div class="inset-label">Stocks</div>
+                            <div class="inset-value">${{ '%.2f'|format(portfolio.total_mv) }}</div></div>
+                        <div class="inset"><div class="inset-label">Cash</div>
+                            <div class="inset-value">{% if portfolio.cash is not none %}${{ '%.2f'|format(portfolio.cash) }}{% else %}—{% endif %}</div></div>
                     </div>
-                {% elif s.latest_output %}
-                    <div class="strategy-output">
-                        <div class="strategy-chart-wrapper">
-                            <img src="/trading/output/{{ s.latest_output }}"
-                                 alt="{{ s.display_name }} chart"
-                                 class="strategy-chart"/>
-                        </div>
-                        <div class="muted strategy-meta">
-                            Last run: {{ (s.latest_age_seconds // 60) }}m ago
-                            {% if s.latest_age_seconds >= 3600 %}
-                                ({{ (s.latest_age_seconds // 3600) }}h)
-                            {% endif %}
-                        </div>
+                    <div class="acct-rows">
+                        <div class="acct-row"><span class="k">Day P/L</span>
+                            <span class="v {{ 'up' if portfolio.day_pl >= 0 else 'down' }}">{{ '%+.2f'|format(portfolio.day_pl) }}</span></div>
+                        <div class="acct-row"><span class="k">Open P/L</span>
+                            <span class="v {{ 'up' if portfolio.total_pl >= 0 else 'down' }}">{{ '%+.2f'|format(portfolio.total_pl) }} · {{ '%+.1f%%'|format(portfolio.total_pl_pct) }}</span></div>
+                        <div class="acct-row"><span class="k">Buying Power</span>
+                            <span class="v">{% if portfolio.buying_power is not none %}${{ '%.2f'|format(portfolio.buying_power) }}{% else %}—{% endif %}</span></div>
+                        {% if portfolio.deployed_pct is not none %}
+                        <div class="acct-row"><span class="k">Deployed</span>
+                            <span class="v">{{ '%.0f%%'|format(portfolio.deployed_pct) }}</span></div>
+                        {% endif %}
                     </div>
+                    <div class="strategy-meta">SNAPSHOT {{ portfolio.as_of }} · MANUAL SYNC</div>
                 {% else %}
-                    <div class="strategy-empty muted">
-                        No chart yet. Click Run to generate.
+                    <div class="empty-state">
+                        <div class="es-title">No snapshot</div>
+                        Session-written from the RH MCP.
                     </div>
+                {% endif %}
+            </div>
+        </section>
+
+        {# ---- Strategies (VIX/SPY regime + future additions) ---- #}
+        {% for s in strategies %}
+        <section class="panel">
+            <div class="panel-head">
+                <span class="panel-title">Strategy</span>
+                {% if s.is_running %}<span class="pill amber">RUNNING…</span>{% endif %}
+            </div>
+            <div class="panel-body">
+                <div style="font-size:12.5px;font-weight:600;color:var(--tx-strong);">{{ s.display_name }}</div>
+                <div class="strategy-desc">{{ s.description }}</div>
+
+                <form hx-post="/trading/strategy/{{ s.slug }}/run"
+                      hx-target="#strategy-output-{{ s.slug }}"
+                      hx-swap="innerHTML"
+                      class="strategy-form">
+                    {% if s.args %}
+                    <div class="strategy-args">
+                        {% for arg in s.args %}
+                        <label class="strategy-arg">
+                            <span class="arg-label">{{ arg.label }}</span>
+                            <input type="{{ arg.type }}" name="{{ arg.name }}" value="{{ arg.default }}"
+                                   placeholder="{{ arg.placeholder|default('') }}" class="arg-input"/>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="strategy-actions">
+                        <button type="submit" class="btn btn-amber" {% if s.is_running %}disabled{% endif %}>
+                            ▸ {% if s.is_running %}Running{% elif s.latest_output %}Run{% else %}Run{% endif %}
+                        </button>
+                        {% if s.latest_output %}
+                        <a class="btn" href="/trading/output/{{ s.latest_output }}" target="_blank" rel="noopener">Chart</a>
+                        {% endif %}
+                    </div>
+                </form>
+
+                <div id="strategy-output-{{ s.slug }}" class="strategy-output-container">
+                    {% if s.latest_output and not s.is_running %}
+                        <div class="regime-chart"><img src="/trading/output/{{ s.latest_output }}"
+                             alt="{{ s.display_name }} chart"/></div>
+                    {% endif %}
+                </div>
+                {% if s.latest_age_seconds is not none %}
+                <div class="strategy-meta">
+                    LAST RUN · {{ (s.latest_age_seconds // 60) }}m ago{% if s.latest_age_seconds >= 3600 %} ({{ (s.latest_age_seconds // 3600) }}h){% endif %}
+                </div>
                 {% endif %}
             </div>
         </section>
         {% endfor %}
-    </div>
+    </aside>
 </div>
 {% endblock %}
