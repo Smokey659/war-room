@@ -1332,7 +1332,18 @@ def _crm_deals(conn, view: str) -> list:
 async def crm_home(request: Request, view: str = "active"):
     crm_db.init_crm_db()
     with crm_db.conn_ctx() as conn:
-        deals = _crm_deals(conn, view)
+        deals = _crm_deals(conn, view) if view != "reminders" else []
+        # Full open-reminders list — the main panel swaps to this when view=reminders
+        # (the KPI card + chip link here; the rail keeps its top-8 preview on other views).
+        all_reminders = conn.execute("""
+            SELECT r.id, r.note, r.kind, r.due_date, r.source,
+                   a.name AS account_name, a.id AS account_id,
+                   d.name AS deal_name, d.id AS deal_id
+            FROM reminders r
+            LEFT JOIN accounts a ON a.id = r.account_id
+            LEFT JOIN deals d ON d.id = r.deal_id
+            WHERE r.done = 0
+            ORDER BY COALESCE(r.due_date, '9999'), r.id DESC""").fetchall() if view == "reminders" else []
         k = conn.execute("""
             SELECT
               (SELECT COALESCE(SUM(amount_1x),0) FROM deals WHERE passive=0 AND renewal=0 AND status='active') AS pipe_1x,
@@ -1371,6 +1382,7 @@ async def crm_home(request: Request, view: str = "active"):
     return templates.TemplateResponse(request, "crm.html", {
         "screen": "crm", "view": view, "deals": deals, "kpis": k,
         "attention": attention[:8], "reminders": reminders, "recent": recent,
+        "all_reminders": all_reminders,
     })
 
 

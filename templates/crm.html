@@ -7,42 +7,69 @@
     {# ================= MAIN COLUMN ================= #}
     <div class="crm-main">
 
-        {# ---- KPI strip ---- #}
+        {# ---- KPI strip (each card is a filter link) ---- #}
         <div class="kpi-strip">
-            <div class="kpi">
+            <a class="kpi kpi-link {{ 'kpi-on' if view == 'active' else '' }}" href="/crm?view=active" title="Show all open deals">
                 <div class="kpi-label">Workable Pipe (1x)</div>
                 <div class="kpi-value">${{ '{:,.0f}'.format(kpis.pipe_1x) }}</div>
                 <div class="kpi-sub">{{ kpis.n_workable }} open deals</div>
-            </div>
-            <div class="kpi">
+            </a>
+            <a class="kpi kpi-link {{ 'kpi-on' if view == 'closing' else '' }}" href="/crm?view=closing" title="Show deals closing within 60 days">
                 <div class="kpi-label">Closing ≤ 60d</div>
                 <div class="kpi-value">{{ kpis.n_closing }}</div>
                 <div class="kpi-sub">${{ '{:,.0f}'.format(kpis.closing_1x) }} 1x</div>
-            </div>
-            <div class="kpi">
+            </a>
+            <a class="kpi kpi-link {{ 'kpi-on' if view == 'stale' else '' }}" href="/crm?view=stale" title="Show deals untouched ≥ 30 days">
                 <div class="kpi-label">Stale ≥ 30d</div>
                 <div class="kpi-value {{ 'down' if kpis.n_stale else '' }}">{{ kpis.n_stale }}</div>
                 <div class="kpi-sub">untouched deals</div>
-            </div>
-            <div class="kpi">
+            </a>
+            <a class="kpi kpi-link {{ 'kpi-on' if view == 'reminders' else '' }}" href="/crm?view=reminders" title="Show all open reminders">
                 <div class="kpi-label">Open Reminders</div>
                 <div class="kpi-value">{{ kpis.n_reminders }}</div>
                 <div class="kpi-sub">{{ kpis.n_passive }} passive (concur) hidden</div>
-            </div>
+            </a>
         </div>
 
-        {# ---- Deals table ---- #}
+        {# ---- Main panel: deals table, or full reminders list when view=reminders ---- #}
         <section class="panel">
             <div class="panel-head">
-                <span class="panel-title">Deals</span>
+                <span class="panel-title">{{ 'Open Reminders' if view == 'reminders' else 'Deals' }}</span>
                 <span class="filter-chips">
-                    {% for f in [('active','ACTIVE'), ('stale','STALE'), ('closing','CLOSING'), ('passive','PASSIVE'), ('all','ALL')] %}
+                    {% for f in [('active','ACTIVE'), ('stale','STALE'), ('closing','CLOSING'), ('reminders','REMINDERS'), ('passive','PASSIVE'), ('all','ALL')] %}
                         <a class="chip {{ 'chip-on' if view == f[0] else '' }}" href="/crm?view={{ f[0] }}">{{ f[1] }}</a>
                     {% endfor %}
                 </span>
             </div>
             <div class="panel-body" style="padding-top:6px;">
-                {% if deals %}
+                {% if view == 'reminders' %}
+                    {% if all_reminders %}
+                    <div class="table-scroll">
+                    <table class="dtable rem-table">
+                        <thead><tr>
+                            <th></th><th>Reminder</th><th>Account</th><th>Deal</th><th>Kind</th><th>Due</th>
+                        </tr></thead>
+                        <tbody>
+                        {% for r in all_reminders %}
+                            <tr>
+                                <td><form method="post" action="/crm/reminder/{{ r.id }}/done?next=/crm%3Fview%3Dreminders" class="rem-check">
+                                    <button class="rem-btn" title="mark done">☐</button></form></td>
+                                <td class="rem-note-cell">{{ r.note }}</td>
+                                <td>{% if r.account_name %}{{ r.account_name[:24] }}{% else %}—{% endif %}</td>
+                                <td class="muted">{% if r.deal_id %}<a href="/crm/deal/{{ r.deal_id }}">{{ (r.deal_name or 'deal')[:30] }}</a>{% else %}—{% endif %}</td>
+                                <td class="muted">{{ r.kind or '—' }}</td>
+                                <td>{{ r.due_date or '—' }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                    {% else %}
+                    <div class="empty-state"><div class="es-title">No open reminders</div>
+                        Reminders arrive from meeting-notes imports and vault parses.</div>
+                    {% endif %}
+                {% elif deals %}
+                <div class="table-scroll">
                 <table class="dtable">
                     <thead><tr>
                         <th>Account</th><th>Deal</th><th>Product</th><th>Ph</th>
@@ -51,9 +78,9 @@
                     <tbody>
                     {% for d in deals %}
                         <tr class="rowlink" onclick="window.location='/crm/deal/{{ d.id }}'">
-                            <td><span class="sym-cell"><span class="sym-tick">{{ d.account_name }}</span>
+                            <td class="td-clip" style="max-width:210px;"><span class="sym-cell"><span class="sym-tick">{{ d.account_name[:26] }}</span>
                                 {% if d.source_hub %}<span class="sym-sub">📓 hub</span>{% endif %}</span></td>
-                            <td class="muted">{{ d.name[:38] }}</td>
+                            <td class="muted td-clip" style="max-width:280px;">{{ d.name[:38] }}</td>
                             <td>{{ d.product or '—' }}</td>
                             <td>{{ d.phase or '—' }}</td>
                             <td>{% if d.amount_1x %}${{ '{:,.0f}'.format(d.amount_1x) }}{% else %}—{% endif %}</td>
@@ -65,15 +92,16 @@
                     {% endfor %}
                     </tbody>
                 </table>
+                </div>
                 {% else %}
                 <div class="empty-state">
-                    <div class="es-title">No deals yet</div>
-                    Import a pipeline export on the <a href="/crm/import">Import</a> page.
+                    <div class="es-title">No deals {{ 'in this view' if view != 'active' else 'yet' }}</div>
+                    {% if view == 'active' %}Import a pipeline export on the <a href="/crm/import">Import</a> page.{% endif %}
                 </div>
                 {% endif %}
             </div>
             <div class="tfoot">
-                <span>{{ deals|length }} SHOWN · VIEW: {{ view|upper }}</span>
+                <span>{{ (all_reminders|length if view == 'reminders' else deals|length) }} SHOWN · VIEW: {{ view|upper }}</span>
                 <span><a class="btn btn-sm btn-secondary" href="/crm/import">⇪ IMPORT</a></span>
             </div>
         </section>

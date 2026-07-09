@@ -352,6 +352,23 @@ body.shell {
 .kpi-value { font-size: 23px; font-weight: 600; color: var(--tx-max); font-variant-numeric: tabular-nums; }
 .kpi-sub { font-size: 9px; color: var(--tx-dim); letter-spacing: 0.5px; }
 
+/* Clickable KPI cards (CRM) — the card IS the filter link */
+a.kpi-link { text-decoration: none; cursor: pointer; transition: background .12s ease; }
+a.kpi-link:hover { background: var(--amber-soft); }
+a.kpi-link:hover .kpi-label { color: var(--amber); }
+a.kpi-link.kpi-on { background: var(--amber-soft); box-shadow: inset 0 -2px 0 var(--amber); }
+a.kpi-link.kpi-on .kpi-label { color: var(--amber); }
+
+/* Table overflow discipline — wide tables scroll inside their panel, never bleed out */
+.table-scroll { overflow-x: auto; }
+.dtable th, .dtable td { white-space: nowrap; }
+.td-clip { overflow: hidden; text-overflow: ellipsis; }
+.rem-table .rem-note-cell {
+  white-space: normal; text-align: left; min-width: 320px; max-width: 520px;
+  font-size: 11px; line-height: 1.45; color: var(--tx-2nd);
+}
+.rem-table td { vertical-align: top; }
+
 .sys-strip { display: flex; flex-wrap: wrap; gap: 18px; padding: 9px 14px; align-items: center; }
 .sys-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 9px; letter-spacing: 1.2px; color: var(--tx-mute); text-transform: uppercase; }
 .sys-chip b { color: var(--tx-2nd); font-weight: 600; }
